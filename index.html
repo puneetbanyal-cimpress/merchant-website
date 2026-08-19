@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Vista Demo — Amazon Connect Context Passing</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="styles.css" />
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%23006196'/><text x='16' y='23' font-size='20' font-family='Inter,sans-serif' font-weight='700' fill='white' text-anchor='middle'>V</text></svg>" />
+</head>
+<body>
+
+<!-- ============ DEMO CONTROL BAR ============ -->
+<div id="demoBar" class="demo-bar">
+  <div class="demo-bar__inner">
+    <div class="demo-bar__row demo-bar__row--top">
+      <span class="demo-badge">DEMO CONTROLS</span>
+
+      <div class="ctx-tabs" id="ctxTabs" role="tablist" aria-label="Shopper context"></div>
+
+      <div class="spacer"></div>
+
+      <label class="mode-toggle" title="Plaintext uses amazon_connect('contactAttributes'). JWT signs attributes server-side via a Netlify function.">
+        <span>Attributes</span>
+        <select id="attrMode">
+          <option value="plaintext">Plaintext</option>
+          <option value="jwt">JWT (signed)</option>
+        </select>
+      </label>
+
+      <button class="btn btn--ghost" id="btnConfig" type="button">Widget config</button>
+      <button class="btn btn--primary" id="btnReloadWidget" type="button">Reload widget</button>
+      <button class="btn btn--ghost" id="btnCollapse" type="button" aria-expanded="true">Hide</button>
+    </div>
+
+    <div class="demo-bar__row demo-bar__row--bottom" id="demoBarBottom">
+      <div class="field">
+        <label for="shopperIdInput">Shopper ID (overrides persona)</label>
+        <input id="shopperIdInput" type="text" placeholder="e.g. SHP-77341" autocomplete="off" spellcheck="false" />
+      </div>
+
+      <div class="field field--kv">
+        <label>Extra attribute</label>
+        <div class="kv-row">
+          <input id="kvKey" type="text" placeholder="key" autocomplete="off" spellcheck="false" />
+          <input id="kvVal" type="text" placeholder="value" autocomplete="off" spellcheck="false" />
+          <button class="btn btn--small" id="btnAddKv" type="button">Add</button>
+        </div>
+        <div class="chips" id="kvChips"></div>
+      </div>
+
+      <div class="field field--json">
+        <label>Attributes sent to Amazon Connect <span id="prefixNote" class="hint"></span></label>
+        <pre id="jsonPreview" class="json-preview">{}</pre>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============ CONFIG MODAL ============ -->
+<div class="modal" id="configModal" hidden>
+  <div class="modal__backdrop" data-close></div>
+  <div class="modal__panel" role="dialog" aria-modal="true" aria-labelledby="configTitle">
+    <h2 id="configTitle">Amazon Connect widget config</h2>
+    <p class="modal__hint">
+      Paste values from your generated hosted-widget snippet. Stored in this browser only
+      (<code>localStorage</code>) — nothing is sent anywhere.
+    </p>
+
+    <label for="cfgWidgetId">Widget ID</label>
+    <input id="cfgWidgetId" type="text" placeholder="e.g. 1a2b3c4d-5e6f-7890-abcd-ef1234567890" spellcheck="false" />
+
+    <label for="cfgScriptUrl">Snippet script URL</label>
+    <input id="cfgScriptUrl" type="text" placeholder="https://xxxxxxxx.cloudfront.net/amazon-connect-chat-interface-client.js" spellcheck="false" />
+
+    <label for="cfgSnippetId">Snippet ID <span class="hint">(optional — only if your snippet sets it)</span></label>
+    <input id="cfgSnippetId" type="text" placeholder="QVFJ..." spellcheck="false" />
+
+    <details class="modal__paste">
+      <summary>Or paste the whole snippet and let me parse it</summary>
+      <textarea id="cfgPaste" rows="7" placeholder="<script type=&quot;text/javascript&quot;> (function(w, d, x, id){...})(window, document, 'amazon_connect', 'WIDGET_ID'); ... <\/script>"></textarea>
+      <button class="btn btn--small" id="btnParsePaste" type="button">Parse snippet</button>
+      <span class="parse-status" id="parseStatus"></span>
+    </details>
+
+    <div class="modal__actions">
+      <button class="btn btn--ghost" id="btnClearCfg" type="button">Clear</button>
+      <div class="spacer"></div>
+      <button class="btn btn--ghost" data-close type="button">Cancel</button>
+      <button class="btn btn--primary" id="btnSaveCfg" type="button">Save &amp; load widget</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ STOREFRONT ============ -->
+<header class="site-header">
+  <div class="wrap site-header__inner">
+    <a class="logo" href="#" aria-label="Vista home">
+      <span class="logo__mark">V</span><span class="logo__word">Vista</span>
+    </a>
+    <nav class="nav" aria-label="Primary">
+      <a href="#products">Business Cards</a>
+      <a href="#products">Signs &amp; Banners</a>
+      <a href="#products">Apparel</a>
+      <a href="#help">Help Center</a>
+    </nav>
+    <div class="site-header__right">
+      <span class="acct" id="acctChip">
+        <span class="acct__dot" id="acctDot"></span>
+        <span class="acct__text" id="acctText">Guest</span>
+      </span>
+      <span class="cart" id="cartChip">Cart · <b id="cartCount">0</b></span>
+    </div>
+  </div>
+</header>
+
+<section class="hero">
+  <div class="wrap hero__inner">
+    <div class="hero__copy">
+      <p class="eyebrow" id="heroEyebrow">Welcome</p>
+      <h1>Design it. Print it. <em>Own it.</em></h1>
+      <p class="lede" id="heroLede">Custom business cards, signs, and apparel — built for small business.</p>
+      <div class="hero__cta">
+        <a class="btn btn--primary btn--lg" href="#products">Start designing</a>
+        <a class="btn btn--outline btn--lg" href="#help">Need help?</a>
+      </div>
+    </div>
+    <div class="hero__panel">
+      <div class="ctx-card">
+        <div class="ctx-card__label">Active shopper context</div>
+        <div class="ctx-card__id" id="ctxCardId">—</div>
+        <dl class="ctx-card__list" id="ctxCardList"></dl>
+      </div>
+    </div>
+  </div>
+</section>
+
+<main class="wrap">
+  <section id="products" class="products">
+    <h2>Popular right now</h2>
+    <div class="grid">
+      <article class="card">
+        <div class="card__img card__img--a"></div>
+        <h3>Standard Business Cards</h3>
+        <p class="card__meta">100 cards · matte or glossy</p>
+        <p class="card__price">from $19.99</p>
+      </article>
+      <article class="card">
+        <div class="card__img card__img--b"></div>
+        <h3>Vinyl Banners</h3>
+        <p class="card__meta">Indoor &amp; outdoor · custom size</p>
+        <p class="card__price">from $34.00</p>
+      </article>
+      <article class="card">
+        <div class="card__img card__img--c"></div>
+        <h3>Embroidered Polos</h3>
+        <p class="card__meta">Your logo · 8 colors</p>
+        <p class="card__price">from $28.50</p>
+      </article>
+    </div>
+  </section>
+
+  <section id="help" class="help">
+    <h2>Help Center</h2>
+    <p class="help__lede">
+      Chat with us and the agent will already see who you are — no repeating your order number.
+    </p>
+    <div class="help__grid">
+      <div class="help-card"><h3>Track an order</h3><p>See where your package is and when it lands.</p></div>
+      <div class="help-card"><h3>Reprints &amp; refunds</h3><p>Something not right? We'll make it right.</p></div>
+      <div class="help-card"><h3>Design help</h3><p>Talk to a designer about files, bleed, and color.</p></div>
+    </div>
+    <div class="help__chat">
+      <button class="btn btn--primary btn--lg" id="btnOpenChat" type="button">Chat with us</button>
+      <span class="widget-status" id="widgetStatus">Widget not loaded</span>
+    </div>
+  </section>
+</main>
+
+<footer class="site-footer">
+  <div class="wrap site-footer__inner">
+    <span>Vista Demo — not affiliated with Vistaprint. Built to demo Amazon Connect context passing.</span>
+    <span class="site-footer__ctx">context: <code id="footerCtx">—</code></span>
+  </div>
+</footer>
+
+<script src="contexts.js"></script>
+<script src="connect-widget.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
