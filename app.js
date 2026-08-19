@@ -1,28 +1,32 @@
 /**
- * Demo shell: context switching, shopper-ID override, custom attributes,
- * and wiring all of it into the Amazon Connect widget.
+ * Commerce Hub Website — demo shell.
+ *
+ * There are no preset personas. Every attribute in the chat context is one you
+ * added at runtime: the shopper ID, the mobile number, and any key/value pairs
+ * you type in. That map is what gets handed to the Amazon Connect widget, and
+ * nothing else.
  */
 (function () {
   'use strict';
 
-  var STATE_KEY = 'vista-demo:state';
-  var CONTEXTS = window.DEMO_CONTEXTS;
+  var STATE_KEY = 'commerce-hub-demo:state';
 
   var ui = {};
-  ['ctxTabs','attrMode','btnConfig','btnReloadWidget','btnCollapse','demoBar','demoBarBottom',
-   'shopperIdInput','kvKey','kvVal','btnAddKv','kvChips','jsonPreview','prefixNote',
-   'configModal','cfgWidgetId','cfgScriptUrl','cfgSnippetId','cfgPaste','btnParsePaste',
-   'parseStatus','btnSaveCfg','btnClearCfg','acctText','acctDot','cartCount',
-   'heroEyebrow','heroLede','ctxCardId','ctxCardList','footerCtx','widgetStatus','btnOpenChat'
+  ['demoBar','demoBarBottom','btnConfig','btnReloadWidget','btnCollapse',
+   'shopperIdInput','mobileInput','kvKey','kvVal','btnAddKv','kvChips','kvEmpty',
+   'jsonPreview','configModal','cfgWidgetId','cfgScriptUrl','cfgSnippetId','cfgPaste',
+   'btnParsePaste','parseStatus','btnSaveCfg','btnClearCfg','acctText','ctxCardList',
+   'ctxCardEmpty','footerCtx','widgetStatus','btnOpenChat','btnCallback',
+   'phoneNumber','phoneNumberText'
   ].forEach(function (id) { ui[id] = document.getElementById(id); });
 
   /* ------------------------------------------------------------------ state */
 
   var state = {
-    contextId: CONTEXTS[0].id,
-    shopperIdOverride: '',
-    custom: {},        // { key: value }
-    mode: 'plaintext'
+    shopperId: '',
+    mobileNumber: '',
+    custom: {},          // insertion-ordered key -> value
+    customOrder: []      // preserves the order you added them in
   };
 
   function persist() {
@@ -32,102 +36,113 @@
   function restore() {
     var saved = null;
     try { saved = JSON.parse(localStorage.getItem(STATE_KEY) || 'null'); } catch (e) {}
-    if (!saved) return;
-    if (CONTEXTS.some(function (c) { return c.id === saved.contextId; })) {
-      state.contextId = saved.contextId;
+    if (saved) {
+      state.shopperId = saved.shopperId || '';
+      state.mobileNumber = saved.mobileNumber || '';
+      state.custom = (saved.custom && typeof saved.custom === 'object') ? saved.custom : {};
+      state.customOrder = Array.isArray(saved.customOrder)
+        ? saved.customOrder.filter(function (k) { return k in state.custom; })
+        : Object.keys(state.custom);
+      // any key that slipped out of the order list still gets rendered
+      Object.keys(state.custom).forEach(function (k) {
+        if (state.customOrder.indexOf(k) === -1) state.customOrder.push(k);
+      });
     }
-    state.shopperIdOverride = saved.shopperIdOverride || '';
-    state.custom = saved.custom && typeof saved.custom === 'object' ? saved.custom : {};
-    state.mode = saved.mode === 'jwt' ? 'jwt' : 'plaintext';
 
-    // A ?shopperId= query param wins over anything stored — handy for demo links.
-    var qp = new URLSearchParams(location.search).get('shopperId');
-    if (qp) state.shopperIdOverride = qp;
+    // Demo links: ?shopperId=SHP-1&mobileNumber=%2B15550104477&tier=gold
+    var qp = new URLSearchParams(location.search);
+    if (qp.get('shopperId')) state.shopperId = qp.get('shopperId');
+    if (qp.get('mobileNumber')) state.mobileNumber = qp.get('mobileNumber');
+    qp.forEach(function (v, k) {
+      if (k === 'shopperId' || k === 'mobileNumber') return;
+      setCustom(k, v);
+    });
   }
 
-  function activeContext() {
-    return CONTEXTS.find(function (c) { return c.id === state.contextId; }) || CONTEXTS[0];
+  function setCustom(k, v) {
+    var key = String(k).trim();
+    if (!key) return;
+    if (!(key in state.custom)) state.customOrder.push(key);
+    state.custom[key] = v;
+  }
+
+  function removeCustom(k) {
+    delete state.custom[k];
+    var i = state.customOrder.indexOf(k);
+    if (i > -1) state.customOrder.splice(i, 1);
   }
 
   /** The exact string->string map handed to Amazon Connect. */
   function buildAttributes() {
-    var ctx = activeContext();
-    var attrs = Object.assign({}, ctx.attributes);
-    if (state.shopperIdOverride.trim()) attrs.shopperId = state.shopperIdOverride.trim();
-    attrs.demoContext = ctx.id;
-    Object.assign(attrs, state.custom);
+    var attrs = {};
+    if (state.shopperId.trim()) attrs.shopperId = state.shopperId.trim();
+    if (state.mobileNumber.trim()) attrs.mobileNumber = state.mobileNumber.trim();
+    state.customOrder.forEach(function (k) { attrs[k] = state.custom[k]; });
     return window.ConnectWidget.normalizeAttributes(attrs);
   }
 
   /* --------------------------------------------------------------- rendering */
 
-  function renderTabs() {
-    ui.ctxTabs.innerHTML = '';
-    CONTEXTS.forEach(function (c) {
-      var b = document.createElement('button');
-      b.type = 'button';
-      b.className = 'ctx-tab';
-      b.setAttribute('role', 'tab');
-      b.setAttribute('aria-selected', String(c.id === state.contextId));
-      b.innerHTML = '<span>' + c.label + '</span><small>' + c.attributes.shopperId + '</small>';
-      b.addEventListener('click', function () { switchContext(c.id); });
-      ui.ctxTabs.appendChild(b);
-    });
-  }
-
   function renderChips() {
     ui.kvChips.innerHTML = '';
-    Object.keys(state.custom).forEach(function (k) {
+    state.customOrder.forEach(function (k) {
       var chip = document.createElement('span');
       chip.className = 'chip';
-      chip.appendChild(document.createTextNode(k + '=' + state.custom[k]));
+
+      var text = document.createElement('span');
+      text.textContent = k + '=' + state.custom[k];
+      chip.appendChild(text);
+
       var x = document.createElement('button');
       x.type = 'button';
       x.textContent = '×';
-      x.setAttribute('aria-label', 'Remove ' + k);
+      x.title = 'Remove ' + k;
+      x.setAttribute('aria-label', 'Remove attribute ' + k);
       x.addEventListener('click', function () {
-        delete state.custom[k];
-        persist(); renderChips(); renderAll();
+        removeCustom(k);
+        persist();
+        renderChips();
+        renderAll();
       });
       chip.appendChild(x);
+
       ui.kvChips.appendChild(chip);
     });
+    ui.kvEmpty.hidden = state.customOrder.length > 0;
   }
 
-  function renderStorefront() {
-    var ctx = activeContext();
-    var attrs = buildAttributes();
-
-    ui.acctText.textContent = attrs.shopperName || ctx.label;
-    ui.acctDot.style.background = ctx.dotColor;
-    ui.cartCount.textContent = String(ctx.cartCount);
-    ui.heroEyebrow.textContent = ctx.hero.eyebrow;
-    ui.heroLede.textContent = ctx.hero.lede;
-    ui.footerCtx.textContent = ctx.id + ' / ' + attrs.shopperId;
-
-    ui.ctxCardId.textContent = attrs.shopperId;
+  function renderContextCard(attrs) {
+    var keys = Object.keys(attrs);
     ui.ctxCardList.innerHTML = '';
-    ['shopperTier', 'locale', 'storefront', 'lifetimeOrders', 'lastOrderId', 'lastOrderStatus']
-      .forEach(function (k) {
-        if (!attrs[k]) return;
-        var dt = document.createElement('dt'); dt.textContent = k;
-        var dd = document.createElement('dd'); dd.textContent = attrs[k];
-        ui.ctxCardList.appendChild(dt);
-        ui.ctxCardList.appendChild(dd);
-      });
+    keys.forEach(function (k) {
+      var dt = document.createElement('dt'); dt.textContent = k;
+      var dd = document.createElement('dd'); dd.textContent = attrs[k];
+      ui.ctxCardList.appendChild(dt);
+      ui.ctxCardList.appendChild(dd);
+    });
+    ui.ctxCardEmpty.hidden = keys.length > 0;
   }
 
-  function renderPreview() {
-    var attrs = buildAttributes();
-    ui.jsonPreview.textContent = JSON.stringify(attrs, null, 2);
-    ui.prefixNote.textContent = state.mode === 'plaintext'
-      ? '— arrive in the flow as HostedWidget-<key>'
-      : '— signed as JWT, arrive unprefixed';
+  function renderPhone() {
+    var num = state.mobileNumber.trim();
+    if (num) {
+      ui.phoneNumberText.textContent = num;
+      ui.phoneNumber.href = 'tel:' + num.replace(/[^\d+]/g, '');
+      ui.phoneNumber.classList.remove('is-empty');
+    } else {
+      ui.phoneNumberText.textContent = 'Add a mobile number in the demo bar';
+      ui.phoneNumber.removeAttribute('href');
+      ui.phoneNumber.classList.add('is-empty');
+    }
   }
 
   function renderAll() {
-    renderStorefront();
-    renderPreview();
+    var attrs = buildAttributes();
+    ui.jsonPreview.textContent = JSON.stringify(attrs, null, 2);
+    ui.acctText.textContent = attrs.shopperId || 'Guest';
+    ui.footerCtx.textContent = String(Object.keys(attrs).length);
+    renderContextCard(attrs);
+    renderPhone();
   }
 
   /* ---------------------------------------------------------------- widget */
@@ -137,32 +152,30 @@
     ui.widgetStatus.textContent = msg;
   }
 
-  function bootWidget() {
-    var ok = window.ConnectWidget.load({
-      attributes: buildAttributes(),
-      mode: state.mode,
-      onStatus: setStatus
-    });
-    if (!ok) setStatus('warn', 'Widget not configured — click "Widget config"');
+  function configured() {
+    return window.ConnectWidget.isConfigured(window.ConnectWidget.loadConfig());
   }
 
-  function switchContext(id) {
-    if (id === state.contextId) return;
-    state.contextId = id;
-    // Drop the manual override — the tab you just clicked advertises its own
-    // shopper ID, and a stale typed ID silently winning is a live-demo footgun.
-    state.shopperIdOverride = '';
-    ui.shopperIdInput.value = '';
-    persist();
-    renderTabs();
-    renderAll();
-    if (window.ConnectWidget.isConfigured(window.ConnectWidget.loadConfig())) {
-      setStatus('warn', 'Reloading widget with new context…');
-      window.ConnectWidget.reload({
-        attributes: buildAttributes(),
-        mode: state.mode,
-        onStatus: setStatus
-      });
+  function bootWidget() {
+    if (!configured()) {
+      setStatus('warn', 'Widget not configured — click "Widget config"');
+      return false;
+    }
+    return window.ConnectWidget.load({
+      attributes: buildAttributes(),
+      onStatus: setStatus
+    });
+  }
+
+  /**
+   * The amazon_connect() config calls are consumed once at boot, so a changed
+   * attribute only reaches the flow after the widget is rebooted.
+   */
+  function rebootIfLive() {
+    if (window.ConnectWidget.isLoaded) {
+      window.ConnectWidget.reload({ attributes: buildAttributes(), onStatus: setStatus });
+    } else if (configured()) {
+      setStatus('warn', 'Attributes changed — click "Reload widget" to apply');
     }
   }
 
@@ -183,32 +196,31 @@
   /* ----------------------------------------------------------------- wiring */
 
   function wire() {
-    ui.attrMode.addEventListener('change', function () {
-      state.mode = ui.attrMode.value;
-      persist();
-      renderPreview();
-      if (window.ConnectWidget.isLoaded) {
-        window.ConnectWidget.reload({
-          attributes: buildAttributes(), mode: state.mode, onStatus: setStatus
-        });
-      }
-    });
-
-    var idTimer;
-    ui.shopperIdInput.addEventListener('input', function () {
-      state.shopperIdOverride = ui.shopperIdInput.value;
-      renderAll();
-      clearTimeout(idTimer);
-      idTimer = setTimeout(persist, 250);
-    });
+    var saveTimer;
+    function onTextInput(prop, el) {
+      el.addEventListener('input', function () {
+        state[prop] = el.value;
+        renderAll();
+        clearTimeout(saveTimer);
+        saveTimer = setTimeout(persist, 250);
+      });
+      el.addEventListener('change', rebootIfLive);
+    }
+    onTextInput('shopperId', ui.shopperIdInput);
+    onTextInput('mobileNumber', ui.mobileInput);
 
     function addKv() {
       var k = ui.kvKey.value.trim();
       var v = ui.kvVal.value.trim();
       if (!k) { ui.kvKey.focus(); return; }
-      state.custom[k] = v;
-      ui.kvKey.value = ''; ui.kvVal.value = ''; ui.kvKey.focus();
-      persist(); renderChips(); renderAll();
+      setCustom(k, v);
+      ui.kvKey.value = '';
+      ui.kvVal.value = '';
+      ui.kvKey.focus();
+      persist();
+      renderChips();
+      renderAll();
+      rebootIfLive();
     }
     ui.btnAddKv.addEventListener('click', addKv);
     [ui.kvKey, ui.kvVal].forEach(function (el) {
@@ -216,10 +228,9 @@
     });
 
     ui.btnReloadWidget.addEventListener('click', function () {
+      if (!configured()) { openConfig(); return; }
       setStatus('warn', 'Reloading widget…');
-      window.ConnectWidget.reload({
-        attributes: buildAttributes(), mode: state.mode, onStatus: setStatus
-      });
+      window.ConnectWidget.reload({ attributes: buildAttributes(), onStatus: setStatus });
     });
 
     ui.btnCollapse.addEventListener('click', function () {
@@ -264,38 +275,50 @@
     ui.btnClearCfg.addEventListener('click', function () {
       window.ConnectWidget.clearConfig();
       window.ConnectWidget.destroy();
-      ui.cfgWidgetId.value = ''; ui.cfgScriptUrl.value = ''; ui.cfgSnippetId.value = '';
+      ui.cfgWidgetId.value = '';
+      ui.cfgScriptUrl.value = '';
+      ui.cfgSnippetId.value = '';
       setStatus('warn', 'Widget config cleared');
     });
 
     ui.btnOpenChat.addEventListener('click', function () {
-      if (!window.ConnectWidget.isConfigured(window.ConnectWidget.loadConfig())) {
-        openConfig();
+      if (!configured()) { openConfig(); return; }
+      if (!window.ConnectWidget.isLoaded) { bootWidget(); return; }
+      // The launcher lives in a cross-origin iframe, so it can't be clicked
+      // from here — point at it instead of pretending.
+      setStatus('ok', 'Widget ready — open it from the chat bubble, bottom right');
+    });
+
+    ui.btnCallback.addEventListener('click', function () {
+      var num = state.mobileNumber.trim();
+      if (!num) {
+        ui.mobileInput.focus();
+        ui.mobileInput.scrollIntoView({ block: 'center', behavior: 'smooth' });
+        setStatus('warn', 'Add a mobile number in the demo bar first');
         return;
       }
-      if (!window.ConnectWidget.isLoaded) { bootWidget(); return; }
-      setStatus('ok', 'Use the chat bubble at the bottom right ↘');
+      setStatus('ok', 'Callback queued for ' + num + ' (demo only — nothing is dialled)');
     });
+
+    ui.configModal.addEventListener('click', function (e) { e.stopPropagation(); });
   }
 
   /* -------------------------------------------------------------------- go */
 
   restore();
-  ui.attrMode.value = state.mode;
-  ui.shopperIdInput.value = state.shopperIdOverride;
-  renderTabs();
+  ui.shopperIdInput.value = state.shopperId;
+  ui.mobileInput.value = state.mobileNumber;
   renderChips();
   renderAll();
   wire();
 
-  // Expose for console poking during the demo.
+  // Handy during a demo: `__DEMO_CONTEXT__` in the console shows exactly what
+  // the next chat will carry.
   Object.defineProperty(window, '__DEMO_CONTEXT__', {
-    get: function () {
-      return { contextId: state.contextId, mode: state.mode, attributes: buildAttributes() };
-    }
+    get: function () { return buildAttributes(); }
   });
 
-  if (window.ConnectWidget.isConfigured(window.ConnectWidget.loadConfig())) {
+  if (configured()) {
     bootWidget();
   } else {
     setStatus('warn', 'Widget not configured — click "Widget config"');

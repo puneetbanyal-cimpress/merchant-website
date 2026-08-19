@@ -1,24 +1,23 @@
-# Vista Demo — Amazon Connect context passing
+# Commerce Hub Website — Amazon Connect chat context demo
 
-A deliberately minimal Vistaprint-style storefront for demoing **shopper context flowing into an Amazon Connect chat**.
+A minimal storefront for demoing **shopper context flowing into an Amazon Connect chat**.
 
-Switch between three shopper contexts (or type any shopper ID), then start a chat — the agent and the contact flow see that shopper's attributes.
+There are no preset personas. Every attribute in the chat context is one you add at runtime — shopper ID, mobile number, and any key/value pairs you type in. That map, and nothing else, is handed to the chat widget.
 
-No framework, no build step. Plain HTML/CSS/JS + one optional Netlify function.
+No framework, no build step, no backend. Four files.
 
 ---
 
 ## What it does
 
-- **Three context tabs** — Guest, Returning, Pro/Business. Each carries a preset shopper ID, tier, locale, storefront, cart value, and order history.
-- **Shopper ID input** — overrides the active context's `shopperId` live.
-- **Custom attributes** — add arbitrary `key=value` pairs at demo time.
-- **Live JSON panel** — shows exactly what will be handed to Amazon Connect.
-- **Two attribute modes**, switchable in the demo bar:
-  - **Plaintext** — `amazon_connect('contactAttributes', {...})`. No backend, no widget security needed.
-  - **JWT (signed)** — a Netlify function signs the attributes with your widget's security key.
-- State persists in `localStorage`, so a page reload keeps the active context.
-- `?shopperId=SHP-123` in the URL pre-seeds the shopper ID — handy for demo links.
+- **Shopper ID** and **Mobile number** fields in the demo bar.
+- **Add attribute** — type any `key` / `value` and hit Add. Remove any of them with the `×` on its chip. As many as you like.
+- **Live JSON panel** — shows exactly what the next chat will carry.
+- **Chat context card** in the hero mirrors the same attributes, so your audience sees them without reading the demo bar.
+- The mobile number you enter renders as the phone number in the **Contact Us** card.
+- State persists in `localStorage`, so a reload keeps everything.
+- Query params pre-seed the context — handy for demo links:
+  `?shopperId=SHP-77341&mobileNumber=%2B15550104477&tier=gold`
 
 ---
 
@@ -40,75 +39,63 @@ Saved to `localStorage` in your browser — nothing leaves the page, nothing is 
 
 ### 2. Read the attributes in your contact flow
 
-Add a **Check contact attributes** block, namespace **User defined**.
+Add a **Check contact attributes** block with namespace **User defined**, and read:
 
-| Mode | Key in the flow |
-|---|---|
-| Plaintext | `HostedWidget-shopperId` |
-| JWT | `shopperId` |
+```
+HostedWidget-shopperId
+HostedWidget-mobileNumber
+HostedWidget-<whatever key you added>
+```
 
-The hosted widget prepends `HostedWidget-` to every plaintext attribute key. JWT-signed attributes arrive unprefixed.
-
-### 3. (Optional) Enable JWT mode
-
-1. In your widget configuration, step 2, choose **Yes** to enable widget security and copy the security key.
-2. In Netlify → *Site configuration → Environment variables*, add:
-   - `CONNECT_WIDGET_SECRET` — the security key (mark as secret)
-   - `CONNECT_WIDGET_ID` — your widget ID (optional; falls back to the value sent by the browser)
-3. Redeploy, then flip **Attribute mode** to **JWT (signed)** in the demo bar.
-
-Until the secret is set the function returns `501` and the demo bar shows the error — plaintext mode keeps working.
+The hosted widget prepends `HostedWidget-` to every attribute key. That prefix is the single most common thing people get wrong here.
 
 ---
 
-## How context switching actually works
+## How context changes reach the flow
 
 The `amazon_connect(...)` config calls are queued and consumed **once**, when the widget client boots. There is no public API to mutate contact attributes on a live widget.
 
-So switching context does a teardown-and-reboot: remove the injected script, strip the nodes the widget added to `<head>`/`<body>`, delete its globals, then re-inject with the new attributes. See `connect-widget.js`.
+So changing an attribute does a teardown-and-reboot: remove the injected script, strip the nodes the widget added to `<head>`/`<body>`, delete its globals, then re-inject with the new attributes. See `connect-widget.js`. Edits while a widget is already open prompt you to hit **Reload widget**, since a chat in progress can't be retro-fitted.
 
-If that ever misbehaves against your real instance, set `RELOAD_STRATEGY = 'page'` at the top of `connect-widget.js`. Context lives in `localStorage`, so a full page reload is a bulletproof fallback — the demo looks the same.
+If teardown ever misbehaves against your real instance, set `RELOAD_STRATEGY = 'page'` at the top of `connect-widget.js`. Context lives in `localStorage`, so a full page reload is a bulletproof fallback — the demo looks the same.
 
 ---
 
 ## Files
 
 ```
-index.html                          markup — storefront + demo bar + config modal
-styles.css                          all styling
-contexts.js                         the three shopper contexts (edit these)
-connect-widget.js                   widget load / teardown / reload, config storage
-app.js                              UI wiring, state, attribute assembly
-netlify/functions/connect-token.mjs HS256 JWT signer (zero deps)
-netlify.toml                        publish dir + functions dir
+index.html          markup — storefront, Help Center, Contact Us, demo bar, config modal
+styles.css          all styling
+connect-widget.js   widget load / teardown / reload, config storage, attribute normalising
+app.js              UI wiring, state, attribute assembly
+netlify.toml        publish dir + headers
 ```
 
-To change the personas, edit `contexts.js` only. Every value under `attributes` must be a **string** — Amazon Connect rejects anything else and the chat fails to start.
+Every attribute value is coerced to a **string** before it's sent. Amazon Connect rejects non-strings and the chat fails to start with no useful error, so `normalizeAttributes` also drops empty values rather than passing `""`.
 
 ---
 
 ## Local dev
 
 ```bash
-npx serve .          # plaintext mode only
-netlify dev          # plaintext + JWT (needs CONNECT_WIDGET_SECRET in .env)
+npx serve .
 ```
 
 ## Deploy
 
-Netlify, publish directory `.`, no build command. Functions auto-detected from `netlify/functions`.
+Netlify — publish directory `.`, no build command.
 
 ---
 
 ## Demo script
 
-1. Open the site. Demo bar is pinned at the top.
-2. Start on **Guest** — point out `GUEST-0000` in the JSON panel.
-3. Click **Returning** — the JSON panel and hero update; the widget reboots with the new attributes.
-4. Type a custom shopper ID in the input; watch the JSON panel follow.
-5. Click **Reload chat widget**, then the chat bubble bottom-right.
-6. In the CCP / contact flow, show `HostedWidget-shopperId` arriving as that shopper.
+1. Open the site. The demo bar is pinned at the top; the JSON panel starts empty.
+2. Type a shopper ID. Watch it appear in the JSON panel, the hero context card, and the header chip.
+3. Add a mobile number. It shows up as the phone number under **Contact Us**.
+4. Add a couple of attributes — `tier=gold`, `lastOrderId=ORD-2026-004512`. Remove one to show it drop out.
+5. Hit **Reload widget**, then **Start chat** and open the bubble at the bottom right.
+6. In the CCP or contact flow, show `HostedWidget-shopperId` arriving with exactly what you typed.
 
 ---
 
-Not affiliated with Vistaprint. Built purely to demo Amazon Connect context passing.
+A demo of Amazon Connect context passing. Not a real storefront.

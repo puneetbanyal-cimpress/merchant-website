@@ -1,16 +1,19 @@
 /**
  * Amazon Connect hosted communications widget — load / teardown / reload.
  *
+ * Attributes are passed in plaintext via amazon_connect('contactAttributes', …).
+ * They arrive in your contact flow prefixed — `HostedWidget-shopperId`, etc.,
+ * under the "User defined" namespace. No backend, no widget security required.
+ *
  * Why teardown-and-reload:
- *   The `amazon_connect(...)` calls (contactAttributes, authenticate, styles, ...)
- *   are queued and consumed once, when the widget client boots. There is no public
- *   API to mutate contact attributes on an already-initialised widget. So switching
- *   shopper context means: rip the widget out of the page and boot it again with the
- *   new attributes.
+ *   The amazon_connect(...) calls are queued and consumed once, when the widget
+ *   client boots. There is no public API to mutate contact attributes on an
+ *   already-initialised widget. So changing the context means ripping the widget
+ *   out of the page and booting it again with the new attributes.
  *
  *   Teardown is best-effort DOM surgery. If it ever misbehaves against a real
- *   instance, flip RELOAD_STRATEGY to 'page' — context lives in localStorage, so a
- *   full page reload is a perfectly good (and bulletproof) fallback for a demo.
+ *   instance, flip RELOAD_STRATEGY to 'page' — the context lives in
+ *   localStorage, so a full page reload is a bulletproof fallback for a demo.
  */
 (function () {
   'use strict';
@@ -19,7 +22,7 @@
   // 'page' -> persist state and location.reload()
   var RELOAD_STRATEGY = 'dom';
 
-  var STORAGE_KEY = 'vista-demo:connect-config';
+  var STORAGE_KEY = 'commerce-hub-demo:connect-config';
 
   /**
    * Defaults for the hosted-widget snippet.
@@ -31,7 +34,7 @@
   var DEFAULT_CONFIG = {
     widgetId: '',
     scriptUrl: '',   // e.g. https://xxxxxxxx.cloudfront.net/amazon-connect-chat-interface-client.js
-    snippetId: ''    // optional; only if your generated snippet calls amazon_connect('snippetId', ...)
+    snippetId: ''    // optional; only if your snippet calls amazon_connect('snippetId', ...)
   };
 
   var state = {
@@ -39,7 +42,7 @@
     bodyBefore: null,
     headBefore: null,
     scriptEl: null,
-    lastPayload: null
+    lastAttributes: null
   };
 
   /* ------------------------------------------------------------------ config */
@@ -147,8 +150,7 @@
       '#amazon-connect-open-widget-button',
       '#amazon-connect-close-widget-button',
       '[id^="amazon-connect"]',
-      'iframe[src*="amazon-connect"]',
-      'iframe[title*="chat" i]'
+      'iframe[src*="amazon-connect"]'
     ].forEach(function (sel) {
       document.querySelectorAll(sel).forEach(function (el) {
         try { el.remove(); } catch (e) { /* ignore */ }
@@ -168,11 +170,9 @@
   /* ------------------------------------------------------------------- load */
 
   /**
-   * @param {object}  opts
-   * @param {object}  opts.attributes  string->string map
-   * @param {string}  opts.mode        'plaintext' | 'jwt'
-   * @param {string}  [opts.tokenEndpoint]
-   * @param {function} [opts.onStatus] (level, message) => void
+   * @param {object}   opts
+   * @param {object}   opts.attributes  string->string map
+   * @param {function} [opts.onStatus]  (level, message) => void
    */
   function load(opts) {
     opts = opts || {};
@@ -185,12 +185,12 @@
     }
 
     // Tear down on ANY previous attempt, not just successful ones — a script that
-    // errored still leaves its tag (and a poisoned amazon_connect queue) behind.
+    // failed to load still leaves its tag (and a stale queue) behind.
     if (state.loaded || state.scriptEl) destroy();
 
     var attrs = normalizeAttributes(opts.attributes);
-    var mode = opts.mode === 'jwt' ? 'jwt' : 'plaintext';
-    state.lastPayload = { mode: mode, attributes: attrs };
+    var count = Object.keys(attrs).length;
+    state.lastAttributes = attrs;
 
     state.headBefore = snapshot(document.head);
     state.bodyBefore = snapshot(document.body);
@@ -204,37 +204,9 @@
       window.amazon_connect('snippetId', cfg.snippetId);
     }
 
-    if (mode === 'plaintext') {
-      // Keys arrive in the contact flow PREFIXED: HostedWidget-shopperId, etc.
-      // Read them with a "Check contact attributes" block, namespace "User defined".
-      window.amazon_connect('contactAttributes', attrs);
-    } else {
-      // Signed path: the Netlify function mints an HS256 JWT whose `attributes`
-      // claim carries the same map. Keys arrive UNPREFIXED in the flow.
-      var endpoint = opts.tokenEndpoint || '/.netlify/functions/connect-token';
-      window.amazon_connect('authenticate', function (callback) {
-        fetch(endpoint, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ attributes: attrs, widgetId: cfg.widgetId })
-        })
-          .then(function (r) {
-            if (!r.ok) throw new Error('token endpoint ' + r.status);
-            return r.json();
-          })
-          .then(function (data) {
-            if (!data || !data.token) throw new Error('no token in response');
-            say('ok', 'JWT issued — attributes signed server-side');
-            callback(data.token);
-          })
-          .catch(function (err) {
-            console.error('[vista-demo] JWT fetch failed:', err);
-            say('err', 'JWT failed: ' + err.message + ' — set CONNECT_WIDGET_SECRET');
-          });
-      });
-    }
-
-    if (typeof opts.beforeInject === 'function') opts.beforeInject(window.amazon_connect);
+    // Keys arrive in the contact flow PREFIXED: HostedWidget-shopperId, etc.
+    // Read them with a "Check contact attributes" block, namespace "User defined".
+    window.amazon_connect('contactAttributes', attrs);
 
     var s = document.createElement('script');
     s.type = 'text/javascript';
@@ -243,7 +215,7 @@
     s.id = cfg.widgetId;
     s.onload = function () {
       state.loaded = true;
-      say('ok', 'Widget loaded · ' + mode + ' · ' + Object.keys(attrs).length + ' attributes');
+      say('ok', 'Widget loaded with ' + count + ' attribute' + (count === 1 ? '' : 's'));
     };
     s.onerror = function () {
       say('err', 'Failed to load widget script — check the snippet URL');
@@ -251,7 +223,7 @@
     document.head.appendChild(s);
     state.scriptEl = s;
 
-    console.info('[vista-demo] widget booting', { mode: mode, attributes: attrs });
+    console.info('[commerce-hub-demo] widget booting with attributes:', attrs);
     say('warn', 'Loading widget…');
     return true;
   }
@@ -275,6 +247,6 @@
     parseSnippet: parseSnippet,
     normalizeAttributes: normalizeAttributes,
     get isLoaded() { return state.loaded; },
-    get lastPayload() { return state.lastPayload; }
+    get lastAttributes() { return state.lastAttributes; }
   };
 })();

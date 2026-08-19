@@ -3,12 +3,12 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Vista Demo — Amazon Connect Context Passing</title>
+<title>Commerce Hub Website — Amazon Connect demo</title>
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
 <link rel="stylesheet" href="styles.css" />
-<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%23006196'/><text x='16' y='23' font-size='20' font-family='Inter,sans-serif' font-weight='700' fill='white' text-anchor='middle'>V</text></svg>" />
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%23111827'/><text x='16' y='23' font-size='19' font-family='Inter,sans-serif' font-weight='700' fill='white' text-anchor='middle'>C</text></svg>" />
 </head>
 <body>
 
@@ -17,43 +17,49 @@
   <div class="demo-bar__inner">
     <div class="demo-bar__row demo-bar__row--top">
       <span class="demo-badge">DEMO CONTROLS</span>
-
-      <div class="ctx-tabs" id="ctxTabs" role="tablist" aria-label="Shopper context"></div>
+      <span class="demo-tagline">Everything below is passed to Amazon Connect when the chat starts</span>
 
       <div class="spacer"></div>
 
-      <label class="mode-toggle" title="Plaintext uses amazon_connect('contactAttributes'). JWT signs attributes server-side via a Netlify function.">
-        <span>Attributes</span>
-        <select id="attrMode">
-          <option value="plaintext">Plaintext</option>
-          <option value="jwt">JWT (signed)</option>
-        </select>
-      </label>
-
       <button class="btn btn--ghost" id="btnConfig" type="button">Widget config</button>
-      <button class="btn btn--primary" id="btnReloadWidget" type="button">Reload widget</button>
+      <button class="btn btn--accent" id="btnReloadWidget" type="button">Reload widget</button>
       <button class="btn btn--ghost" id="btnCollapse" type="button" aria-expanded="true">Hide</button>
     </div>
 
     <div class="demo-bar__row demo-bar__row--bottom" id="demoBarBottom">
-      <div class="field">
-        <label for="shopperIdInput">Shopper ID (overrides persona)</label>
-        <input id="shopperIdInput" type="text" placeholder="e.g. SHP-77341" autocomplete="off" spellcheck="false" />
-      </div>
-
-      <div class="field field--kv">
-        <label>Extra attribute</label>
-        <div class="kv-row">
-          <input id="kvKey" type="text" placeholder="key" autocomplete="off" spellcheck="false" />
-          <input id="kvVal" type="text" placeholder="value" autocomplete="off" spellcheck="false" />
-          <button class="btn btn--small" id="btnAddKv" type="button">Add</button>
+      <div class="demo-col">
+        <div class="field">
+          <label for="shopperIdInput">Shopper ID</label>
+          <input id="shopperIdInput" type="text" placeholder="e.g. SHP-77341" autocomplete="off" spellcheck="false" />
         </div>
-        <div class="chips" id="kvChips"></div>
+
+        <div class="field">
+          <label for="mobileInput">Mobile number</label>
+          <input id="mobileInput" type="tel" placeholder="e.g. +1 555 010 4477" autocomplete="off" spellcheck="false" />
+        </div>
       </div>
 
-      <div class="field field--json">
-        <label>Attributes sent to Amazon Connect <span id="prefixNote" class="hint"></span></label>
-        <pre id="jsonPreview" class="json-preview">{}</pre>
+      <div class="demo-col demo-col--kv">
+        <div class="field">
+          <label for="kvKey">Add attribute</label>
+          <div class="kv-row">
+            <input id="kvKey" type="text" placeholder="key" autocomplete="off" spellcheck="false" />
+            <input id="kvVal" type="text" placeholder="value" autocomplete="off" spellcheck="false" />
+            <button class="btn btn--small btn--accent" id="btnAddKv" type="button">Add</button>
+          </div>
+          <div class="chips" id="kvChips"></div>
+          <p class="kv-empty" id="kvEmpty">None yet — add as many as you like, remove with ×</p>
+        </div>
+      </div>
+
+      <div class="demo-col demo-col--json">
+        <div class="field">
+          <label>
+            Attributes sent to Amazon Connect
+            <span class="hint">— arrive as <code>HostedWidget-&lt;key&gt;</code></span>
+          </label>
+          <pre id="jsonPreview" class="json-preview">{}</pre>
+        </div>
       </div>
     </div>
   </div>
@@ -86,9 +92,9 @@
     </details>
 
     <div class="modal__actions">
-      <button class="btn btn--ghost" id="btnClearCfg" type="button">Clear</button>
+      <button class="btn btn--ghost-light" id="btnClearCfg" type="button">Clear</button>
       <div class="spacer"></div>
-      <button class="btn btn--ghost" data-close type="button">Cancel</button>
+      <button class="btn btn--ghost-light" data-close type="button">Cancel</button>
       <button class="btn btn--primary" id="btnSaveCfg" type="button">Save &amp; load widget</button>
     </div>
   </div>
@@ -97,8 +103,8 @@
 <!-- ============ STOREFRONT ============ -->
 <header class="site-header">
   <div class="wrap site-header__inner">
-    <a class="logo" href="#" aria-label="Vista home">
-      <span class="logo__mark">V</span><span class="logo__word">Vista</span>
+    <a class="logo" href="#" aria-label="Commerce Hub home">
+      <span class="logo__mark">C</span><span class="logo__word">Commerce Hub</span>
     </a>
     <nav class="nav" aria-label="Primary">
       <a href="#products">Business Cards</a>
@@ -107,11 +113,11 @@
       <a href="#help">Help Center</a>
     </nav>
     <div class="site-header__right">
-      <span class="acct" id="acctChip">
-        <span class="acct__dot" id="acctDot"></span>
+      <span class="acct">
+        <span class="acct__dot"></span>
         <span class="acct__text" id="acctText">Guest</span>
       </span>
-      <span class="cart" id="cartChip">Cart · <b id="cartCount">0</b></span>
+      <span class="cart">Cart · <b>0</b></span>
     </div>
   </div>
 </header>
@@ -119,19 +125,21 @@
 <section class="hero">
   <div class="wrap hero__inner">
     <div class="hero__copy">
-      <p class="eyebrow" id="heroEyebrow">Welcome</p>
+      <p class="eyebrow">Commerce Hub Website</p>
       <h1>Design it. Print it. <em>Own it.</em></h1>
-      <p class="lede" id="heroLede">Custom business cards, signs, and apparel — built for small business.</p>
+      <p class="lede">Custom business cards, signs, and apparel — built for small business.</p>
       <div class="hero__cta">
         <a class="btn btn--primary btn--lg" href="#products">Start designing</a>
-        <a class="btn btn--outline btn--lg" href="#help">Need help?</a>
+        <a class="btn btn--outline btn--lg" href="#help">Contact Us</a>
       </div>
     </div>
     <div class="hero__panel">
       <div class="ctx-card">
-        <div class="ctx-card__label">Active shopper context</div>
-        <div class="ctx-card__id" id="ctxCardId">—</div>
+        <div class="ctx-card__label">Chat context</div>
         <dl class="ctx-card__list" id="ctxCardList"></dl>
+        <p class="ctx-card__empty" id="ctxCardEmpty">
+          Nothing yet — add attributes in the demo bar above.
+        </p>
       </div>
     </div>
   </div>
@@ -164,29 +172,67 @@
 
   <section id="help" class="help">
     <h2>Help Center</h2>
-    <p class="help__lede">
-      Chat with us and the agent will already see who you are — no repeating your order number.
-    </p>
-    <div class="help__grid">
-      <div class="help-card"><h3>Track an order</h3><p>See where your package is and when it lands.</p></div>
-      <div class="help-card"><h3>Reprints &amp; refunds</h3><p>Something not right? We'll make it right.</p></div>
-      <div class="help-card"><h3>Design help</h3><p>Talk to a designer about files, bleed, and color.</p></div>
+
+    <div class="faq-grid">
+      <button class="faq" type="button">What are your shipping speeds?<span aria-hidden="true">›</span></button>
+      <button class="faq" type="button">How do I upload my image?<span aria-hidden="true">›</span></button>
+      <button class="faq" type="button">Can you help me with my design?<span aria-hidden="true">›</span></button>
+      <button class="faq" type="button">What if I'm not happy with my purchase?<span aria-hidden="true">›</span></button>
+      <button class="faq" type="button">My order hasn't arrived, what can I do?<span aria-hidden="true">›</span></button>
+      <button class="faq" type="button">Which payment methods do you accept?<span aria-hidden="true">›</span></button>
+      <button class="faq" type="button">How do I apply for a tax-exempt purchase?<span aria-hidden="true">›</span></button>
     </div>
-    <div class="help__chat">
-      <button class="btn btn--primary btn--lg" id="btnOpenChat" type="button">Chat with us</button>
-      <span class="widget-status" id="widgetStatus">Widget not loaded</span>
+
+    <h2 class="contact-heading">Contact Us</h2>
+    <div class="contact-grid">
+
+      <div class="contact-card">
+        <h3>Commerce Hub Assistant</h3>
+        <p class="status-line"><span class="status-dot"></span>Online</p>
+        <p class="contact-card__body">
+          Chat with our AI assistant or connect with a specialist at any time.
+        </p>
+        <div class="contact-card__foot">
+          <button class="btn btn--outline" id="btnOpenChat" type="button">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>
+            Start chat
+          </button>
+        </div>
+        <p class="widget-status" id="widgetStatus">Widget not loaded</p>
+      </div>
+
+      <div class="contact-card">
+        <h3>Phone</h3>
+        <div class="hours">
+          <span>Mon – Fri</span><span>7:00 AM – 3:00 AM EST</span>
+          <span>Sat – Sun</span><span>8:00 AM – 8:00 PM EST</span>
+        </div>
+        <a class="phone-number" id="phoneNumber" href="#help">
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.36 1.9.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.9.34 1.85.57 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+          <span id="phoneNumberText">Add a mobile number in the demo bar</span>
+        </a>
+        <p class="contact-card__body">
+          Fill out a callback form and we'll call you within five minutes.
+        </p>
+        <div class="contact-card__foot">
+          <button class="btn btn--outline" id="btnCallback" type="button">Request callback</button>
+        </div>
+        <p class="contact-card__email">
+          Prefer email? <a href="mailto:support@commercehub.example">Write to us (Get a reply within 24h)</a>
+        </p>
+      </div>
+
     </div>
   </section>
 </main>
 
 <footer class="site-footer">
   <div class="wrap site-footer__inner">
-    <span>Vista Demo — not affiliated with Vistaprint. Built to demo Amazon Connect context passing.</span>
-    <span class="site-footer__ctx">context: <code id="footerCtx">—</code></span>
+    <span>Commerce Hub Website — a demo of Amazon Connect chat context passing.</span>
+    <span class="site-footer__ctx">attributes in context: <code id="footerCtx">0</code></span>
   </div>
 </footer>
 
-<script src="contexts.js"></script>
 <script src="connect-widget.js"></script>
 <script src="app.js"></script>
 </body>
