@@ -1,77 +1,66 @@
 # Commerce Hub Website — Amazon Connect chat context demo
 
-A minimal storefront for demoing **shopper context flowing into an Amazon Connect chat**.
+A single-screen storefront page for demoing **shopper context flowing into an Amazon Connect chat**.
 
-There are no preset personas. Every attribute in the chat context is one you add at runtime — shopper ID, mobile number, and any key/value pairs you type in. That map, and nothing else, is handed to the chat widget.
+Type a shopper ID, click **Add Shopper ID**, start a chat — the agent and the contact flow see that ID before the customer types anything.
 
 No framework, no build step, no backend. Four files.
 
 ---
 
-## What it does
+## How it works
 
-- **Shopper ID** and **Mobile number** fields in the demo bar.
-- **Add attribute** — type any `key` / `value` and hit Add. Remove any of them with the `×` on its chip. As many as you like.
-- **Live JSON panel** — shows exactly what the next chat will carry.
-- **Chat context card** in the hero mirrors the same attributes, so your audience sees them without reading the demo bar.
-- The mobile number you enter renders as the phone number in the **Contact Us** card.
-- State persists in `localStorage`, so a reload keeps everything.
-- Query params pre-seed the context — handy for demo links:
-  `?shopperId=SHP-77341&mobileNumber=%2B15550104477&tier=gold`
+The page has one control: a **Shopper ID** input with an **Add Shopper ID** button. Clicking it (or pressing Enter) stores the ID, updates the header chip, and reboots the Amazon Connect widget so the new value is carried into the next chat.
+
+Everything else — Contact Us with the chat, phone, and email cards — is static page content.
+
+The shopper ID persists in `localStorage`, and `?shopperId=SHP-77341` in the URL pre-seeds it, which is handy for demo links.
 
 ---
 
-## Setup
+## Widget config
 
-### 1. Point it at your widget
+Hard-coded at the top of `connect-widget.js` in `CONNECT_WIDGET_CONFIG` — widget ID, snippet script URL, snippet ID, styles, and supported messaging content types, taken straight from the generated hosted-widget snippet. That is the only place widget config lives; there is no runtime config panel.
 
-Click **Widget config** in the demo bar and either fill in the fields or paste your whole generated hosted-widget snippet and hit **Parse snippet**. It needs:
+To point the demo at a different Connect instance, replace those values.
 
-| Field | Where it comes from |
-|---|---|
-| Widget ID | last argument of the snippet's IIFE — `(window, document, 'amazon_connect', '<widgetId>')` |
-| Snippet script URL | the `s.src = '…/amazon-connect-chat-interface-client.js'` line |
-| Snippet ID | only if your snippet calls `amazon_connect('snippetId', '…')` |
+---
 
-Saved to `localStorage` in your browser — nothing leaves the page, nothing is committed.
+## Reading the attribute in your contact flow
 
-**To bake the values in instead**, edit `DEFAULT_CONFIG` at the top of `connect-widget.js`. Note these become public in the repo and on the deployed site.
-
-### 2. Read the attributes in your contact flow
-
-Add a **Check contact attributes** block with namespace **User defined**, and read:
+Add a **Check contact attributes** block with namespace **User defined** and read:
 
 ```
 HostedWidget-shopperId
-HostedWidget-mobileNumber
-HostedWidget-<whatever key you added>
 ```
 
-The hosted widget prepends `HostedWidget-` to every attribute key. That prefix is the single most common thing people get wrong here.
+The hosted widget prepends `HostedWidget-` to every plaintext attribute key. That prefix is the single most common thing people get wrong here — `shopperId` alone will not match.
 
 ---
 
-## How context changes reach the flow
+## Why the widget reboots
 
 The `amazon_connect(...)` config calls are queued and consumed **once**, when the widget client boots. There is no public API to mutate contact attributes on a live widget.
 
-So changing an attribute does a teardown-and-reboot: remove the injected script, strip the nodes the widget added to `<head>`/`<body>`, delete its globals, then re-inject with the new attributes. See `connect-widget.js`. Edits while a widget is already open prompt you to hit **Reload widget**, since a chat in progress can't be retro-fitted.
+So **Add Shopper ID** tears the widget down — removes the injected script, strips the nodes it added to `<head>`/`<body>`, deletes its globals — and boots it again with the new attribute. See `connect-widget.js`.
 
-If teardown ever misbehaves against your real instance, set `RELOAD_STRATEGY = 'page'` at the top of `connect-widget.js`. Context lives in `localStorage`, so a full page reload is a bulletproof fallback — the demo looks the same.
+A chat already in progress can't be retro-fitted; set the ID before starting the chat.
+
+If teardown ever misbehaves against a real instance, set `RELOAD_STRATEGY = 'page'` at the top of `connect-widget.js`. The shopper ID lives in `localStorage`, so a full page reload is a bulletproof fallback and the demo looks the same.
 
 ---
 
 ## Files
 
 ```
-index.html          markup — storefront, Help Center, Contact Us, demo bar, config modal
+index.html          markup — header, hero with the shopper ID box, Contact Us, footer
 styles.css          all styling
-connect-widget.js   widget load / teardown / reload, config storage, attribute normalising
-app.js              UI wiring, state, attribute assembly
+connect-widget.js   CONNECT_WIDGET_CONFIG + widget load / teardown / reload
+app.js              shopper ID state and wiring
 netlify.toml        publish dir + headers
 ```
 
-Every attribute value is coerced to a **string** before it's sent. Amazon Connect rejects non-strings and the chat fails to start with no useful error, so `normalizeAttributes` also drops empty values rather than passing `""`.
+Attribute values are coerced to **strings** and empties are dropped before sending. Amazon Connect rejects non-strings and the chat fails to start with no useful error.
 
 ---
 
@@ -89,12 +78,11 @@ Netlify — publish directory `.`, no build command.
 
 ## Demo script
 
-1. Open the site. The demo bar is pinned at the top; the JSON panel starts empty.
-2. Type a shopper ID. Watch it appear in the JSON panel, the hero context card, and the header chip.
-3. Add a mobile number. It shows up as the phone number under **Contact Us**.
-4. Add a couple of attributes — `tier=gold`, `lastOrderId=ORD-2026-004512`. Remove one to show it drop out.
-5. Hit **Reload widget**, then **Start chat** and open the bubble at the bottom right.
-6. In the CCP or contact flow, show `HostedWidget-shopperId` arriving with exactly what you typed.
+1. Open the page. Everything fits in one screen; no scrolling needed.
+2. Type a shopper ID and click **Add Shopper ID**. The header chip and the line under the input both update, and the status line confirms the widget reloaded.
+3. Click the chat bubble at the bottom right and start a chat.
+4. In the CCP or contact flow, show `HostedWidget-shopperId` arriving with exactly what you typed.
+5. Change the ID, click **Add Shopper ID** again, start a fresh chat to show the new value coming through.
 
 ---
 

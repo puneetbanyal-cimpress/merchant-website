@@ -1,18 +1,51 @@
 /**
  * Amazon Connect hosted communications widget — load / teardown / reload.
  *
+ * ============================================================================
+ *  PASTE YOUR SNIPPET VALUES HERE. This is the only place widget config lives.
+ * ============================================================================
+ *
+ * From your generated hosted-widget snippet:
+ *
+ *   (function(w, d, x, id){
+ *     s = d.createElement('script');
+ *     s.src = 'https://xxxxxxxx.cloudfront.net/amazon-connect-chat-interface-client.js';  <-- SCRIPT_URL
+ *     ...
+ *   })(window, document, 'amazon_connect', '1a2b3c4d-5e6f-...');                          <-- WIDGET_ID
+ *   amazon_connect('snippetId', 'QVFJ...');                                               <-- SNIPPET_ID
+ */
+var CONNECT_WIDGET_CONFIG = {
+  widgetId:  '786ebf9f-e686-4a98-8347-6c24bd0b8ac2',
+  scriptUrl: 'https://commerce-carehub.my.connect.aws/connectwidget/static/amazon-connect-chat-interface-client.js',
+  snippetId: 'QVFJREFIaThPZ042Z2Vwd1EzbWNOOW9zZVBpdlltbFlYREFwbEVldGoySmJEcktXREFFeVFGcFk2dm5DdkxuMmlQbENwT0dZQUFBQWJqQnNCZ2txaGtpRzl3MEJCd2FnWHpCZEFnRUFNRmdHQ1NxR1NJYjNEUUVIQVRBZUJnbGdoa2dCWlFNRUFTNHdFUVFNYzNCZlNYWlVFUGhLc3JyOEFnRVFnQ3NSY0l4UGVudDNCQVVNZHlkYlVBWW1aMUVweGd4QjNOclhNVHg1dzVRMU1wbGN4eXdjeGE4TUJsL2c6OkJ6K1lhQ3NSTktqamtXWTJjTEZOYXkxNzMxZDltNTU5S2VzOE00dUpSY25XVDVjNjhJY2RxN3NOOVB1SFdKYlZKNmE4cGRLUTN5SnhGQVFsN0hnZ3M2Wlc2cm1haEpSeUdrNlVIR2dXUndJTWErUGtaVDFwVzF4dm1sNi92Z1I5Yit1SHFySG13UEw4YnZpT0tBei9vVnNIaEd1WlVRVT0=',
+
+  // The rest of the generated snippet's config calls, replayed on every boot.
+  styles: {
+    iconType: 'CHAT_VOICE',
+    openChat: { color: '#ffffff', backgroundColor: '#124754' },
+    closeChat: { color: '#ffffff', backgroundColor: '#123456' }
+  },
+  supportedMessagingContentTypes: [
+    'text/plain',
+    'text/markdown',
+    'application/vnd.amazonaws.connect.message.interactive',
+    'application/vnd.amazonaws.connect.message.interactive.response'
+  ]
+};
+
+/**
  * Attributes are passed in plaintext via amazon_connect('contactAttributes', …).
- * They arrive in your contact flow prefixed — `HostedWidget-shopperId`, etc.,
- * under the "User defined" namespace. No backend, no widget security required.
+ * They arrive in your contact flow prefixed — `HostedWidget-shopperId` — under
+ * the "User defined" namespace. No backend, no widget security required.
  *
  * Why teardown-and-reload:
  *   The amazon_connect(...) calls are queued and consumed once, when the widget
  *   client boots. There is no public API to mutate contact attributes on an
- *   already-initialised widget. So changing the context means ripping the widget
- *   out of the page and booting it again with the new attributes.
+ *   already-initialised widget. So a new shopper ID means ripping the widget out
+ *   of the page and booting it again.
  *
  *   Teardown is best-effort DOM surgery. If it ever misbehaves against a real
- *   instance, flip RELOAD_STRATEGY to 'page' — the context lives in
+ *   instance, flip RELOAD_STRATEGY to 'page' — the shopper ID lives in
  *   localStorage, so a full page reload is a bulletproof fallback for a demo.
  */
 (function () {
@@ -22,21 +55,6 @@
   // 'page' -> persist state and location.reload()
   var RELOAD_STRATEGY = 'dom';
 
-  var STORAGE_KEY = 'commerce-hub-demo:connect-config';
-
-  /**
-   * Defaults for the hosted-widget snippet.
-   *
-   * Leave blank and use the "Widget config" panel at demo time, OR paste your
-   * generated snippet's values here to bake them into the build.
-   * Anything saved via the config panel (localStorage) overrides these.
-   */
-  var DEFAULT_CONFIG = {
-    widgetId: '',
-    scriptUrl: '',   // e.g. https://xxxxxxxx.cloudfront.net/amazon-connect-chat-interface-client.js
-    snippetId: ''    // optional; only if your snippet calls amazon_connect('snippetId', ...)
-  };
-
   var state = {
     loaded: false,
     bodyBefore: null,
@@ -45,56 +63,19 @@
     lastAttributes: null
   };
 
-  /* ------------------------------------------------------------------ config */
-
-  function loadConfig() {
-    var saved = {};
-    try {
-      saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}') || {};
-    } catch (e) { /* ignore */ }
+  function config() {
     return {
-      widgetId: saved.widgetId || DEFAULT_CONFIG.widgetId || '',
-      scriptUrl: saved.scriptUrl || DEFAULT_CONFIG.scriptUrl || '',
-      snippetId: saved.snippetId || DEFAULT_CONFIG.snippetId || ''
+      widgetId: (CONNECT_WIDGET_CONFIG.widgetId || '').trim(),
+      scriptUrl: (CONNECT_WIDGET_CONFIG.scriptUrl || '').trim(),
+      snippetId: (CONNECT_WIDGET_CONFIG.snippetId || '').trim(),
+      styles: CONNECT_WIDGET_CONFIG.styles,
+      supportedMessagingContentTypes: CONNECT_WIDGET_CONFIG.supportedMessagingContentTypes
     };
   }
 
-  function saveConfig(cfg) {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({
-      widgetId: (cfg.widgetId || '').trim(),
-      scriptUrl: (cfg.scriptUrl || '').trim(),
-      snippetId: (cfg.snippetId || '').trim()
-    }));
-  }
-
-  function clearConfig() {
-    localStorage.removeItem(STORAGE_KEY);
-  }
-
-  function isConfigured(cfg) {
-    return !!(cfg && cfg.widgetId && cfg.scriptUrl);
-  }
-
-  /**
-   * Best-effort parse of a pasted hosted-widget snippet.
-   * Pulls the widgetId (last arg of the IIFE), the script src, and snippetId.
-   */
-  function parseSnippet(text) {
-    var out = { widgetId: '', scriptUrl: '', snippetId: '' };
-    if (!text) return out;
-
-    var src = text.match(/s\.src\s*=\s*['"]([^'"]+)['"]/);
-    if (!src) src = text.match(/(https?:\/\/[^\s'"]+amazon-connect-chat-interface-client\.js)/);
-    if (src) out.scriptUrl = src[1];
-
-    // (window, document, 'amazon_connect', '<widgetId>')
-    var wid = text.match(/['"]amazon_connect['"]\s*,\s*['"]([^'"]+)['"]/);
-    if (wid) out.widgetId = wid[1];
-
-    var snip = text.match(/amazon_connect\(\s*['"]snippetId['"]\s*,\s*['"]([^'"]+)['"]\s*\)/);
-    if (snip) out.snippetId = snip[1];
-
-    return out;
+  function isConfigured() {
+    var c = config();
+    return !!(c.widgetId && c.scriptUrl);
   }
 
   /* ---------------------------------------------------------------- payload */
@@ -176,11 +157,11 @@
    */
   function load(opts) {
     opts = opts || {};
-    var cfg = loadConfig();
+    var cfg = config();
     var say = opts.onStatus || function () {};
 
-    if (!isConfigured(cfg)) {
-      say('warn', 'Widget not configured — open "Widget config"');
+    if (!isConfigured()) {
+      say('warn', 'Widget not configured — set CONNECT_WIDGET_CONFIG in connect-widget.js');
       return false;
     }
 
@@ -203,8 +184,14 @@
     if (cfg.snippetId) {
       window.amazon_connect('snippetId', cfg.snippetId);
     }
+    if (cfg.styles) {
+      window.amazon_connect('styles', cfg.styles);
+    }
+    if (cfg.supportedMessagingContentTypes) {
+      window.amazon_connect('supportedMessagingContentTypes', cfg.supportedMessagingContentTypes);
+    }
 
-    // Keys arrive in the contact flow PREFIXED: HostedWidget-shopperId, etc.
+    // Keys arrive in the contact flow PREFIXED: HostedWidget-shopperId.
     // Read them with a "Check contact attributes" block, namespace "User defined".
     window.amazon_connect('contactAttributes', attrs);
 
@@ -218,7 +205,7 @@
       say('ok', 'Widget loaded with ' + count + ' attribute' + (count === 1 ? '' : 's'));
     };
     s.onerror = function () {
-      say('err', 'Failed to load widget script — check the snippet URL');
+      say('err', 'Failed to load widget script — check scriptUrl in connect-widget.js');
     };
     document.head.appendChild(s);
     state.scriptEl = s;
@@ -240,12 +227,9 @@
     load: load,
     reload: reload,
     destroy: destroy,
-    loadConfig: loadConfig,
-    saveConfig: saveConfig,
-    clearConfig: clearConfig,
     isConfigured: isConfigured,
-    parseSnippet: parseSnippet,
     normalizeAttributes: normalizeAttributes,
+    get config() { return config(); },
     get isLoaded() { return state.loaded; },
     get lastAttributes() { return state.lastAttributes; }
   };
