@@ -231,6 +231,10 @@ var CONNECT_WIDGET_CONFIG = {
     normalizeAttributes: normalizeAttributes,
     get config() { return config(); },
     get isLoaded() { return state.loaded; },
+    // True once anything has been injected, including a script that errored.
+    // Teardown must key off this, not isLoaded, or a failed boot leaves its tag
+    // behind and the next load stacks a second one.
+    get hasWidget() { return state.loaded || !!state.scriptEl; },
     get lastAttributes() { return state.lastAttributes; }
   };
 })();

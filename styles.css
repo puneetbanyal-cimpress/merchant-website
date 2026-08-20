@@ -20,7 +20,14 @@ body{
   color:var(--ink);
   background:var(--bg);
   -webkit-font-smoothing:antialiased;
+  /* Sticky footer: the middle grows to fill whatever height is left, so the
+     footer sits on the bottom edge instead of floating up on tall screens. */
+  min-height:100vh;
+  display:flex;
+  flex-direction:column;
 }
+.site-main{flex:1 0 auto;display:flex;flex-direction:column;justify-content:center}
+.site-footer{flex:none}
 .wrap{max-width:1160px;margin:0 auto;padding:0 24px}
 h1,h2,h3{margin:0 0 .5em;line-height:1.15;letter-spacing:-.015em}
 a{color:inherit}
@@ -61,7 +68,7 @@ a{color:inherit}
 .hero{background:linear-gradient(165deg,#f4f6f9 0%,#fafbfc 65%,#fff 100%);border-bottom:1px solid var(--line)}
 .hero__inner{
   display:grid;grid-template-columns:1fr .95fr;gap:44px;align-items:center;
-  padding-top:34px;padding-bottom:34px;
+  padding-top:30px;padding-bottom:30px;
 }
 .eyebrow{
   margin:0 0 8px;font-size:11.5px;font-weight:700;letter-spacing:.09em;
@@ -105,8 +112,9 @@ a{color:inherit}
 .widget-status.err{color:var(--err)}
 
 /* ---------- contact ---------- */
-.contact{padding:44px 0 60px}
-.contact h2{font-size:26px;margin-bottom:20px}
+.contact{padding:40px 0 44px}
+.contact h2{font-size:26px;margin-bottom:6px}
+.contact__lede{margin:0 0 24px;color:var(--ink-2);font-size:15px;line-height:1.6;max-width:70ch}
 .contact-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:20px}
 .contact-card{
   border:1px solid var(--line);border-radius:14px;padding:24px 26px;background:#fff;
@@ -117,6 +125,7 @@ a{color:inherit}
 .status-line--muted{color:var(--ink-2);font-weight:400}
 .status-dot{width:9px;height:9px;border-radius:50%;background:#0f7b4f;flex:none}
 .status-dot--amber{background:#d97706}
+.status-dot--grey{background:var(--muted)}
 .contact-card__body{margin:0 0 20px;color:var(--ink-2);font-size:14.5px;line-height:1.6}
 .contact-card__foot{margin-top:auto;display:flex;align-items:center;gap:14px;flex-wrap:wrap}
 

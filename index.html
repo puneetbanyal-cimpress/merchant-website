@@ -62,14 +62,21 @@
   </div>
 </section>
 
-<main class="wrap">
+<main class="site-main">
+ <div class="wrap">
   <section id="contact" class="contact">
     <h2>Contact Us</h2>
+    <p class="contact__lede">
+      Three ways to reach us. Chat is fastest — the agent already has your shopper ID.
+    </p>
     <div class="contact-grid">
 
       <div class="contact-card">
         <h3>Commerce Hub Assistant</h3>
-        <p class="status-line"><span class="status-dot"></span>Online</p>
+        <p class="status-line" id="assistantStatus">
+          <span class="status-dot status-dot--grey" id="assistantDot"></span>
+          <span id="assistantStatusText">Add a Shopper ID to start</span>
+        </p>
         <p class="contact-card__body">
           Chat with our AI assistant or connect with a specialist at any time.
         </p>
@@ -118,6 +125,7 @@
 
     </div>
   </section>
+ </div>
 </main>
 
 <footer class="site-footer">
