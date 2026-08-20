@@ -141,7 +141,11 @@ a{color:inherit}
   margin:0 0 16px;letter-spacing:-.015em;
 }
 .phone-number{font-weight:700;font-size:23px}
-.email-address{font-weight:700;font-size:15px;overflow-wrap:anywhere}
+/* overflow-wrap:anywhere would drop the min-content width to zero and make the
+   flex item wrap eagerly, so the address is kept on one line and clipped with an
+   ellipsis instead — the mailto: link still carries the full address. */
+.email-address{font-weight:700;font-size:14px;max-width:100%}
+.email-address span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
 .phone-number svg,.email-address svg{color:var(--accent);flex:none}
 .phone-number:hover span,.email-address:hover span{text-decoration:underline}
 
