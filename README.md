@@ -17,20 +17,20 @@ Three attributes go across:
 | Attribute | In the contact flow |
 |---|---|
 | `shopperId` | `HostedWidget-shopperId` |
-| `shopperName` | `HostedWidget-shopperName` |
-| `shopperEmail` | `HostedWidget-shopperEmail` |
+| `firstName` | `HostedWidget-firstName` |
+| `lastName` | `HostedWidget-lastName` |
 
 Read them with a **Check contact attributes** block, namespace **User defined**. The hosted widget prepends `HostedWidget-` to every key — that prefix is the single most common thing people get wrong here.
 
 **The widget is gated on that context.** With nothing selected, the widget script is never injected and no chat bubble appears; the Assistant card reads "Set a chat context to start". Clearing the selection tears down an already-loaded widget. This makes it impossible to open a chat carrying an empty or stale context.
 
-Selection persists in `localStorage`, and `?shopperId=SHP-77341` in the URL pre-seeds it — handy for demo links.
+Selection persists in `localStorage`, and `?shopperId=<id>` in the URL pre-seeds it — handy for demo links.
 
 ---
 
 ## Editing the shoppers
 
-`shoppers.js`, one object per shopper. Add or change entries there; nothing else needs to touch.
+`shoppers.js`, one object per shopper (`firstName`, `lastName`, `shopperId`). The same file also holds the contact reasons, country regions with their dialling codes, and the working hours used by both the phone card and the callback form's rail. Add or change entries there; nothing else needs to touch.
 
 Every value must be a **string** — Amazon Connect rejects non-strings and the chat fails to start with no useful error. `normalizeAttributes` coerces and drops empties as a backstop.
 
@@ -38,9 +38,17 @@ Every value must be a **string** — Amazon Connect rejects non-strings and the 
 
 ## Request a callback
 
-The **Request callback** button opens a native `<dialog>` (focus trapping, Escape-to-close, and inertness come free) with a form pre-filled from the active shopper context: name, email, country code + phone, topic, order number, preferred time, notes, and a consent checkbox.
+The **Request callback** button opens a native `<dialog>` (focus trapping, Escape-to-close, and inertness come free) running a two-step wizard modelled on the reference screens.
 
-Validation is deferred: errors surface via `:user-invalid` once a field has been interacted with, or on a submit attempt — never on a pristine field.
+**Step 1 — "Hi {firstName}, let's make sure we have the right details"**: contact reason, first name, last name, country region, phone, and a call-recording consent checkbox. First and last name prefill from the active shopper; the shopper ID shows beneath the heading with a "Not {firstName}?" link that clears the prefill. Changing the country region reseeds the phone field's dialling code.
+
+**Step 2 — "Tell us how we can help"**: a description textarea, minimum 15 characters, 1000 max, with a live counter. **Back** returns to step 1 with everything intact.
+
+A left rail carries the three-step explainer and the working hours; a progress bar runs 50% → 100%, and the numbered step markers light as you move.
+
+The footer button is disabled until the current step is valid, exactly like the reference. Because a greyed-out button doesn't say *which* field is missing, errors also surface on blur — but only on fields the user actually focused, never on ones they merely tabbed through.
+
+One POST fires, on **Submit request**, carrying both steps plus the chat context.
 
 ### Wiring up the API
 
@@ -61,29 +69,30 @@ The payload:
 
 ```jsonc
 {
-  "fullName": "Nadia Okafor",
-  "email": "nadia.okafor@…",
-  "countryCode": "+1",
-  "phone": "555 010 4477",
+  // step 1
+  "contactReason": "order-status",
+  "firstName": "Paul",
+  "lastName": "Harraghy",
+  "countryRegion": "US",
+  "dialCode": "+1",
+  "phone": "+1 5550104477",
   "phoneE164": "+15550104477",
-  "reason": "order-status",
-  "orderNumber": "ORD-2026-004512",
-  "preferredTime": "asap",
-  "notes": null,
-  "consent": true,
-  "shopperId": "PRO-10298",        // same context the chat widget carries
-  "shopperName": "Nadia Okafor",
-  "shopperEmail": "nadia.okafor@…",
+  "consentToCallRecording": true,
+
+  // step 2
+  "description": "My banner order arrived with the wrong dimensions.",
+
+  // same context the chat widget carries
+  "shopperId": "d2FyaG9s-237A146D7D6859E2CE8BEFDCAB4D38F9",
+
   "source": "quirepress-web",
   "channel": "callback",
-  "requestedAt": "2026-08-20T09:14:22.481Z",
+  "requestedAt": "2026-08-21T08:59:59.669Z",
   "pageUrl": "https://…"
 }
 ```
 
 Reshape it in `buildPayload()` if the real contract differs. Non-2xx responses and timeouts surface inline in the dialog rather than closing it.
-
-> The form fields are a reconstruction of a standard callback form, not a copy of any specific one — the reference page renders client-side and couldn't be read.
 
 ---
 
@@ -104,9 +113,9 @@ If teardown ever misbehaves against a real instance, set `RELOAD_STRATEGY = 'pag
 ## Files
 
 ```
-index.html          header, hero with the shopper picker, Contact Us, callback dialog
+index.html          header, hero with the shopper picker, Contact Us, callback wizard
 styles.css          all styling
-shoppers.js         the demo shoppers offered in the dropdown
+shoppers.js         demo shoppers, contact reasons, country regions, working hours
 callback-api.js     CALLBACK_API config, payload shape, POST + simulation mode
 connect-widget.js   CONNECT_WIDGET_CONFIG + widget load / teardown / reload
 app.js              state and wiring
@@ -132,9 +141,9 @@ Netlify — publish directory `.`, no build command.
 1. Open the page. Everything fits one screen. There is **no chat bubble** — the Assistant card reads "Set a chat context to start".
 2. Pick a shopper from the dropdown. The three attributes appear under it; nothing has loaded yet.
 3. Hit **Set chat context**. The bubble appears, the header switches from "Guest" to the shopper's name, and the status line confirms the widget loaded.
-4. Open the bubble and start a chat. In the CCP or contact flow, show `HostedWidget-shopperId`, `-shopperName` and `-shopperEmail` arriving.
+4. Open the bubble and start a chat. In the CCP or contact flow, show `HostedWidget-shopperId`, `-firstName` and `-lastName` arriving.
 5. Switch to a different shopper, hit the button again, start a fresh chat to show the new values coming through.
-6. Click **Request callback** — the form is already filled in from the same context. Submit and show the payload in the console, shopper fields included.
+6. Click **Request callback** — the heading greets the shopper by first name, the name fields are prefilled, and the shopper ID is shown beneath. Fill in the reason and phone, hit **Next**, describe the issue, **Submit request** — then show the payload in the console with `shopperId` carried through.
 
 ---
 

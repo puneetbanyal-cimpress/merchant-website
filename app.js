@@ -2,37 +2,53 @@
  * Quirepress — demo shell.
  *
  * Pick a shopper from the dropdown, hit "Set chat context", and the Amazon
- * Connect widget reboots carrying that shopper's id, name and email.
+ * Connect widget reboots carrying that shopper's id and name.
  *
  * The widget is gated on that context: with nothing selected there is nothing
  * worth passing, so the widget is never injected — and clearing the selection
  * tears down an already-loaded one. A chat bubble can never appear carrying an
  * empty or stale context.
+ *
+ * The callback flow is a two-step wizard modelled on the reference screens; it
+ * prefills from the same context and POSTs it alongside the form.
  */
 (function () {
   'use strict';
 
   var STATE_KEY = 'quirepress-demo:shopperId';
   var SHOPPERS = window.DEMO_SHOPPERS || [];
+  var REASONS = window.CONTACT_REASONS || [];
+  var REGIONS = window.COUNTRY_REGIONS || [];
+  var HOURS = window.WORKING_HOURS || [];
+  var MIN_DESC = 15;
 
   var ui = {};
   ['shopperSelect','btnSetContext','shopperCtx','shopperCtxEmpty','widgetStatus',
-   'acctText','acctDot','footerCtx','btnOpenChat','btnCallback',
+   'acctText','acctDot','footerCtx','btnOpenChat','btnCallback','phoneHours',
    'assistantDot','assistantStatusText',
-   'callbackDialog','callbackForm','cbBody','cbDone','cbDoneMsg','cbDoneClose',
-   'cbCancel','cbSubmit','cbStatus','cbCtxNote',
-   'cbName','cbEmail','cbPhone','cbCountry','cbReason','cbOrder','cbWhen','cbNotes','cbConsent'
+   'cbDialog','cbExit','cbHours','cbProgress','cbStep1','cbStep2','cbDone',
+   'cbGreeting','cbIdentValue','cbIdentSep','cbNotYou','cbStepTitle',
+   'cbForm1','cbForm2','cbReason','cbFirst','cbLast','cbCountry','cbPhone','cbConsent',
+   'cbDesc','cbCount','cbBack','cbNext','cbSubmit','cbClose','cbStatus','cbDoneMsg'
   ].forEach(function (id) { ui[id] = document.getElementById(id); });
 
   /** The shopper whose context is currently live (null = none). */
   var active = null;
   /** The dropdown selection, which may not be applied yet. */
   var pending = null;
+  /** Wizard position: 1, 2, or 'done'. */
+  var step = 1;
+  /** Fields the user has actually focused, so blur only scolds touched ones. */
+  var touched = new Set();
 
   /* ------------------------------------------------------------------ state */
 
   function findShopper(id) {
     return SHOPPERS.find(function (s) { return s.shopperId === id; }) || null;
+  }
+
+  function fullName(s) {
+    return s ? (s.firstName + ' ' + s.lastName) : '';
   }
 
   function restore() {
@@ -55,8 +71,8 @@
     if (!active) return {};
     return window.ConnectWidget.normalizeAttributes({
       shopperId: active.shopperId,
-      shopperName: active.shopperName,
-      shopperEmail: active.shopperEmail
+      firstName: active.firstName,
+      lastName: active.lastName
     });
   }
 
@@ -66,12 +82,37 @@
 
   /* --------------------------------------------------------------- rendering */
 
-  function buildOptions() {
+  function buildStaticOptions() {
     SHOPPERS.forEach(function (s) {
       var o = document.createElement('option');
       o.value = s.shopperId;
-      o.textContent = s.shopperName + ' · ' + s.shopperId;
+      o.textContent = fullName(s);
       ui.shopperSelect.appendChild(o);
+    });
+
+    REASONS.forEach(function (r) {
+      var o = document.createElement('option');
+      o.value = r.value;
+      o.textContent = r.label;
+      ui.cbReason.appendChild(o);
+    });
+
+    REGIONS.forEach(function (c) {
+      var o = document.createElement('option');
+      o.value = c.value;
+      o.textContent = c.label;
+      o.dataset.dial = c.dial;
+      ui.cbCountry.appendChild(o);
+    });
+    ui.cbCountry.value = 'US';
+
+    [ui.phoneHours, ui.cbHours].forEach(function (host) {
+      HOURS.forEach(function (h) {
+        var d = document.createElement('span'); d.textContent = h.day;
+        var v = document.createElement('span'); v.textContent = h.hours;
+        host.appendChild(d);
+        host.appendChild(v);
+      });
     });
   }
 
@@ -82,16 +123,19 @@
     ui.shopperCtx.innerHTML = '';
     keys.forEach(function (k) {
       var dt = document.createElement('dt'); dt.textContent = k;
-      var dd = document.createElement('dd'); dd.textContent = attrs[k];
+      var dd = document.createElement('dd');
+      dd.textContent = attrs[k];
+      dd.title = attrs[k];
       ui.shopperCtx.appendChild(dt);
       ui.shopperCtx.appendChild(dd);
     });
     ui.shopperCtxEmpty.hidden = keys.length > 0;
 
     // The header shows the NAME once a context is set, not the id.
-    ui.acctText.textContent = active ? active.shopperName : 'Guest';
+    ui.acctText.textContent = active ? fullName(active) : 'Guest';
     ui.acctDot.classList.toggle('is-set', !!active);
     ui.footerCtx.textContent = active ? active.shopperId : '—';
+    ui.footerCtx.title = active ? active.shopperId : '';
 
     var live = window.ConnectWidget.isLoaded;
     ui.assistantStatusText.textContent = live ? 'Online' : 'Set a chat context to start';
@@ -131,64 +175,138 @@
     active = pending;
     persist();
     render();
-    if (!active) {
-      ui.shopperSelect.focus();
-      syncWidget(true);
-      return;
-    }
+    if (!active) ui.shopperSelect.focus();
     syncWidget(true);
   }
 
-  /* -------------------------------------------------------------- callback */
+  /* ------------------------------------------------------- callback wizard */
+
+  function dialFor(code) {
+    var r = REGIONS.find(function (c) { return c.value === code; });
+    return r ? r.dial : '';
+  }
+
+  function showStep(n) {
+    step = n;
+    var done = n === 'done';
+
+    ui.cbStep1.hidden = n !== 1;
+    ui.cbStep2.hidden = n !== 2;
+    ui.cbDone.hidden = !done;
+
+    ui.cbBack.hidden = n !== 2;
+    ui.cbNext.hidden = n !== 1;
+    ui.cbSubmit.hidden = n !== 2;
+    ui.cbClose.hidden = !done;
+
+    ui.cbProgress.style.width = n === 1 ? '50%' : '100%';
+    ui.cbDialog.querySelector('.cb__progress')
+      .setAttribute('aria-valuenow', n === 1 ? '50' : '100');
+
+    ui.cbDialog.querySelectorAll('.cb__num').forEach(function (el) {
+      var s = Number(el.dataset.step);
+      el.classList.toggle('is-active', done ? s === 3 : s === n);
+    });
+
+    ui.cbStatus.textContent = '';
+    ui.cbStatus.className = 'cb__status';
+
+    if (n === 1) ui.cbReason.focus();
+    else if (n === 2) ui.cbDesc.focus();
+    else ui.cbClose.focus();
+  }
+
+  /** Mark a field's error visible or not. Errors never show on a pristine form. */
+  function setError(el, show) {
+    var msg = ui.cbDialog.querySelector('.cb__error[data-for="' + el.id + '"]');
+    if (msg) msg.classList.toggle('is-shown', show);
+    el.classList.toggle('is-invalid', show);
+    el.setAttribute('aria-invalid', show ? 'true' : 'false');
+  }
+
+  function step1Fields() {
+    return [ui.cbReason, ui.cbFirst, ui.cbLast, ui.cbCountry, ui.cbPhone, ui.cbConsent];
+  }
+
+  function fieldValid(el) {
+    if (el === ui.cbConsent) return el.checked;
+    if (el === ui.cbPhone) {
+      // Must carry digits beyond the dialling code the field is seeded with.
+      return el.value.replace(/[^\d]/g, '').length >= 7;
+    }
+    return el.value.trim() !== '';
+  }
+
+  function step1Valid() {
+    return step1Fields().every(fieldValid);
+  }
+
+  function step2Valid() {
+    return ui.cbDesc.value.trim().length >= MIN_DESC;
+  }
+
+  /** Enable/disable the footer button the way the reference form does. */
+  function refreshButtons() {
+    ui.cbNext.disabled = !step1Valid();
+    ui.cbSubmit.disabled = !step2Valid();
+  }
 
   function openCallback() {
     // Prefill from the active context so the demo shows context reuse across
     // channels, not just chat.
-    ui.cbName.value = active ? active.shopperName : '';
-    ui.cbEmail.value = active ? active.shopperEmail : '';
-    ui.cbCtxNote.textContent = active
-      ? 'Sent with shopperId ' + active.shopperId + '.'
-      : 'No shopper context set — the request will be sent without one.';
+    ui.cbFirst.value = active ? active.firstName : '';
+    ui.cbLast.value = active ? active.lastName : '';
+    ui.cbGreeting.textContent = active
+      ? 'Hi ' + active.firstName + ", let's make sure we have the right details"
+      : "Let's make sure we have the right details";
+    ui.cbIdentValue.textContent = active ? active.shopperId : 'No shopper selected';
+    ui.cbIdentValue.title = active ? active.shopperId : '';
+    ui.cbIdentValue.classList.toggle('is-id', !!active);
+    ui.cbIdentSep.hidden = !active;
+    ui.cbNotYou.hidden = !active;
+    if (active) ui.cbNotYou.textContent = 'Not ' + active.firstName + '?';
 
-    ui.callbackForm.hidden = false;
-    ui.cbBody.hidden = false;
-    ui.cbDone.hidden = true;
-    ui.cbStatus.textContent = '';
-    ui.cbStatus.className = 'cb__status';
-    ui.callbackForm.classList.remove('is-submitted');
-    ui.cbSubmit.disabled = false;
+    ui.cbReason.value = '';
+    ui.cbCountry.value = 'US';
+    ui.cbPhone.value = dialFor('US');
+    ui.cbConsent.checked = false;
+    ui.cbDesc.value = '';
+    ui.cbCount.textContent = '0/1000 characters';
 
-    ui.callbackDialog.showModal();
+    touched.clear();
+    step1Fields().concat([ui.cbDesc]).forEach(function (el) { setError(el, false); });
+    refreshButtons();
+    showStep(1);
+    ui.cbDialog.showModal();
   }
 
   function readForm() {
     return {
-      fullName: ui.cbName.value.trim(),
-      email: ui.cbEmail.value.trim(),
-      countryCode: ui.cbCountry.value,
+      contactReason: ui.cbReason.value,
+      firstName: ui.cbFirst.value.trim(),
+      lastName: ui.cbLast.value.trim(),
+      countryRegion: ui.cbCountry.value,
+      dialCode: dialFor(ui.cbCountry.value),
       phone: ui.cbPhone.value.trim(),
-      reason: ui.cbReason.value,
-      orderNumber: ui.cbOrder.value.trim(),
-      preferredTime: ui.cbWhen.value,
-      notes: ui.cbNotes.value.trim(),
-      consent: ui.cbConsent.checked
+      consent: ui.cbConsent.checked,
+      description: ui.cbDesc.value.trim()
     };
   }
 
-  async function submitCallback(e) {
-    e.preventDefault();
+  function goNext() {
+    var bad = step1Fields().filter(function (el) { return !fieldValid(el); });
+    step1Fields().forEach(function (el) { setError(el, !fieldValid(el)); });
+    if (bad.length) { bad[0].focus(); return; }
+    showStep(2);
+  }
 
-    // novalidate on the form, so validity is checked here — that keeps the
-    // browser from showing its own bubble over the dialog and lets the
-    // :user-invalid styling do the talking.
-    ui.callbackForm.classList.add('is-submitted');
-    if (!ui.callbackForm.checkValidity()) {
-      var firstBad = ui.callbackForm.querySelector(':invalid');
-      if (firstBad) firstBad.focus();
-      ui.cbStatus.className = 'cb__status is-err';
-      ui.cbStatus.textContent = 'Please fix the highlighted fields.';
+  async function submitCallback() {
+    if (!step2Valid()) {
+      setError(ui.cbDesc, true);
+      ui.cbDesc.focus();
       return;
     }
+    setError(ui.cbDesc, false);
 
     ui.cbSubmit.disabled = true;
     ui.cbStatus.className = 'cb__status';
@@ -205,13 +323,11 @@
 
     var ref = result.data && result.data.referenceId;
     ui.cbDoneMsg.textContent =
-      'Reference ' + (ref || '—') + '. We\'ll ring ' +
-      ui.cbCountry.value.replace(/-.*$/, '') + ' ' + ui.cbPhone.value.trim() + ' shortly.' +
+      "We'll call " + dialFor(ui.cbCountry.value) + ' ' +
+      ui.cbPhone.value.trim().replace(dialFor(ui.cbCountry.value), '').trim() +
+      ' within minutes. Reference ' + (ref || '—') + '.' +
       (result.simulated ? ' (Simulated — no endpoint configured yet.)' : '');
-
-    ui.cbBody.hidden = true;
-    ui.cbDone.hidden = false;
-    ui.cbDoneClose.focus();
+    showStep('done');
   }
 
   /* ----------------------------------------------------------------- wiring */
@@ -222,7 +338,7 @@
       // Selecting alone does not change the live context — the button does.
       if (pending !== active) {
         setStatus('warn', pending
-          ? 'Selected ' + pending.shopperName + ' — hit "Set chat context" to apply'
+          ? 'Selected ' + fullName(pending) + ' — hit "Set chat context" to apply'
           : 'Cleared — hit "Set chat context" to unload the widget');
       }
     });
@@ -243,20 +359,66 @@
     });
 
     ui.btnCallback.addEventListener('click', openCallback);
-    ui.callbackForm.addEventListener('submit', submitCallback);
-    ui.cbCancel.addEventListener('click', function () { ui.callbackDialog.close('cancel'); });
-    ui.cbDoneClose.addEventListener('click', function () { ui.callbackDialog.close('done'); });
 
-    // Click on the backdrop (i.e. on the dialog element itself, outside the
-    // panel) closes it. <dialog> already handles Escape and focus trapping.
-    ui.callbackDialog.addEventListener('click', function (e) {
-      if (e.target === ui.callbackDialog) ui.callbackDialog.close('backdrop');
+    // Live validation. The Next button stays disabled until the step is valid,
+    // so errors have to surface on blur — otherwise a greyed-out button is the
+    // only feedback and nothing says WHICH field is missing.
+    step1Fields().forEach(function (el) {
+      var ev = (el === ui.cbConsent || el.tagName === 'SELECT') ? 'change' : 'input';
+      el.addEventListener(ev, function () {
+        if (fieldValid(el)) setError(el, false);
+        refreshButtons();
+      });
+      el.addEventListener('blur', function () {
+        // Don't scold a field the user only tabbed through without touching.
+        if (touched.has(el) && !fieldValid(el)) setError(el, true);
+      });
+      el.addEventListener('focus', function () { touched.add(el); });
     });
+
+    ui.cbCountry.addEventListener('change', function () {
+      // Reseed the phone field with the new dialling code, keeping any digits
+      // the user already typed beyond the old one.
+      var oldDial = ui.cbPhone.value.match(/^\+\d+/);
+      var rest = oldDial ? ui.cbPhone.value.slice(oldDial[0].length) : ui.cbPhone.value;
+      ui.cbPhone.value = dialFor(ui.cbCountry.value) + rest;
+      refreshButtons();
+    });
+
+    ui.cbDesc.addEventListener('input', function () {
+      ui.cbCount.textContent = ui.cbDesc.value.length + '/1000 characters';
+      if (step2Valid()) setError(ui.cbDesc, false);
+      refreshButtons();
+    });
+
+    ui.cbNext.addEventListener('click', goNext);
+    ui.cbBack.addEventListener('click', function () { showStep(1); });
+    ui.cbSubmit.addEventListener('click', submitCallback);
+    ui.cbClose.addEventListener('click', function () { ui.cbDialog.close('done'); });
+    ui.cbExit.addEventListener('click', function () { ui.cbDialog.close('exit'); });
+
+    ui.cbNotYou.addEventListener('click', function () {
+      // Clears the prefill so the demo can show an unrecognised caller.
+      ui.cbFirst.value = '';
+      ui.cbLast.value = '';
+      ui.cbGreeting.textContent = "Let's make sure we have the right details";
+      ui.cbFirst.focus();
+      refreshButtons();
+    });
+
+    // <dialog> already handles Escape and focus trapping. Add backdrop-click.
+    ui.cbDialog.addEventListener('click', function (e) {
+      if (e.target === ui.cbDialog) ui.cbDialog.close('backdrop');
+    });
+
+    // Enter anywhere in step 1 advances rather than doing nothing.
+    ui.cbForm1.addEventListener('submit', function (e) { e.preventDefault(); goNext(); });
+    ui.cbForm2.addEventListener('submit', function (e) { e.preventDefault(); submitCallback(); });
   }
 
   /* -------------------------------------------------------------------- go */
 
-  buildOptions();
+  buildStaticOptions();
   restore();
   ui.shopperSelect.value = active ? active.shopperId : '';
   render();

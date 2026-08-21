@@ -24,39 +24,38 @@ var CALLBACK_API = {
 (function () {
   'use strict';
 
-  var SIMULATED_LATENCY_MS = 700;
+  var SIMULATED_LATENCY_MS = 800;
 
   /**
-   * Build the request body from the form values plus the active chat context.
+   * Build the request body from both wizard steps plus the active chat context.
    *
    * Kept as one function so the payload shape is obvious and easy to reshape
    * when the real API's contract lands.
    *
-   * @param {object} form     values read off the callback form
-   * @param {object} context  the current chat context (shopperId/Name/Email)
+   * @param {object} form     values collected across step 1 and step 2
+   * @param {object} context  the current chat context (shopperId/firstName/lastName)
    * @param {string} nowIso   ISO timestamp for the request
    */
   function buildPayload(form, context, nowIso) {
+    var digits = (form.phone || '').replace(/[^\d]/g, '');
+    var dial = (form.dialCode || '').replace(/[^\d+]/g, '');
+
     return {
-      // who to call
-      fullName: form.fullName,
-      email: form.email,
-      countryCode: form.countryCode,
+      // step 1 — who to call
+      contactReason: form.contactReason,
+      firstName: form.firstName,
+      lastName: form.lastName,
+      countryRegion: form.countryRegion,
+      dialCode: form.dialCode,
       phone: form.phone,
-      phoneE164: (form.countryCode || '').replace(/-.*$/, '') +
-                 (form.phone || '').replace(/[^\d]/g, ''),
+      phoneE164: digits ? (dial + digits.replace(new RegExp('^' + dial.replace('+', '')), '')) : null,
+      consentToCallRecording: !!form.consent,
 
-      // what about
-      reason: form.reason,
-      orderNumber: form.orderNumber || null,
-      preferredTime: form.preferredTime,
-      notes: form.notes || null,
-      consent: !!form.consent,
+      // step 2 — what about
+      description: form.description,
 
-      // who they are — same context the chat widget carries
+      // who they are — the same context the chat widget carries
       shopperId: context.shopperId || null,
-      shopperName: context.shopperName || null,
-      shopperEmail: context.shopperEmail || null,
 
       // provenance
       source: 'quirepress-web',
