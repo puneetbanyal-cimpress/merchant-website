@@ -1,5 +1,7 @@
 # Quirepress — Amazon Connect chat context demo
 
+Live at **https://commerce-hub-website.netlify.app**
+
 A single-screen storefront page for demoing **shopper context flowing into an Amazon Connect chat**, plus a callback request form that carries the same context to a REST API.
 
 Pick a shopper, hit **Set chat context**, start a chat — the agent and the contact flow see who it is before the customer types anything.
@@ -140,6 +142,8 @@ npx serve .
 ```
 
 ## Deploy
+
+Live at **https://commerce-hub-website.netlify.app**
 
 Netlify — publish directory `.`, no build command.
 
