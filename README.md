@@ -10,7 +10,9 @@ No framework, no build step. Six files.
 
 ## How it works
 
-The hero has one control: a **Shopper** dropdown and a **Set chat context** button. Selecting a shopper stages it; the button applies it, which stores the selection, updates the header (showing the shopper's **name**), and reboots the Amazon Connect widget so the new attributes reach the next chat.
+The hero has one control: a **Shopper** dropdown and a **Set chat context** button. **Changing the dropdown changes the context** — it stores the selection, updates the header (showing the shopper's **name**), and reboots the Amazon Connect widget so the new attributes reach the next chat. The button does the same thing on demand, for rebooting without switching shopper.
+
+There is deliberately no "staged" selection waiting on a button press: a pending value the button had to commit meant the widget and the callback form could disagree with what the dropdown visibly said.
 
 Three attributes go across:
 
@@ -100,13 +102,17 @@ Reshape it in `buildPayload()` if the real contract differs. Non-2xx responses a
 
 Hard-coded at the top of `connect-widget.js` in `CONNECT_WIDGET_CONFIG` — widget ID, snippet script URL, snippet ID, styles, and supported messaging content types, taken straight from the generated hosted-widget snippet. All of them are replayed on every boot, so a reload reproduces the snippet exactly. There is no runtime config panel.
 
-### Why the widget reboots
+### Why swapping context reloads the page
 
-The `amazon_connect(...)` config calls are queued and consumed **once**, when the widget client boots. There is no public API to mutate contact attributes on a live widget. So **Set chat context** tears the widget down — removes the injected script, strips the nodes it added to `<head>`/`<body>`, deletes its globals — and boots it again.
+The `amazon_connect(...)` config calls are queued and consumed **once**, when the widget client boots. There is no public API to mutate contact attributes on a live widget, so new attributes need a fresh boot.
 
-A chat already in progress can't be retro-fitted; set the context before starting the chat.
+In-place teardown — removing the script, stripping the nodes, deleting the globals — is not enough. The widget client keeps state we can't reach: closures, its own iframes, and a **persisted chat session** (the same mechanism that lets the bubble survive a refresh). A re-injected script can rejoin the existing contact, and a rejoined contact keeps the attributes it was created with — so the newly selected shopper never reaches the flow.
 
-If teardown ever misbehaves against a real instance, set `RELOAD_STRATEGY = 'page'` at the top of `connect-widget.js`. The selection lives in `localStorage`, so a full page reload is a bulletproof fallback and the demo looks the same.
+So `RELOAD_STRATEGY` defaults to `'page'`: clear the persisted session keys, then reload. The selection lives in `localStorage`, so it comes straight back and the demo looks the same.
+
+`'dom'` is still there for the no-flash swap, but only use it if you've verified the swap against your own instance.
+
+A chat already in progress can't be retro-fitted either; set the context before starting the chat.
 
 ---
 

@@ -51,9 +51,44 @@ var CONNECT_WIDGET_CONFIG = {
 (function () {
   'use strict';
 
-  // 'dom'  -> remove the widget's nodes + globals, re-inject the script (no page flash)
-  // 'page' -> persist state and location.reload()
-  var RELOAD_STRATEGY = 'dom';
+  /**
+   * How to swap contexts.
+   *
+   * 'page' (default) — clear the widget's persisted chat session, then reload
+   *   the page. The selected shopper lives in localStorage so it survives.
+   *
+   * 'dom' — rip the widget's nodes and globals out and re-inject the script,
+   *   no page flash. Faster, but NOT reliable: the widget client keeps state we
+   *   can't reach (closures, its own iframes, and a persisted chat session), so
+   *   a re-injected script can reconnect to the EXISTING contact and keep
+   *   sending the attributes that contact was created with. That is precisely
+   *   the "I picked Paul but it sent Marcus's id" bug. Only use 'dom' if you
+   *   have verified the swap against your own instance.
+   */
+  var RELOAD_STRATEGY = 'page';
+
+  /**
+   * Keys the Connect chat client uses to resume an in-flight conversation.
+   * Left in place, the next boot rejoins that contact instead of creating a new
+   * one — and a rejoined contact keeps its original attributes, so a new shopper
+   * id would never reach the flow. Matched by pattern because the exact key
+   * names are internal to the client and have changed between versions.
+   */
+  var SESSION_KEY_PATTERN = /(amazon[-_]?connect|connect[-_]?chat|acChat|chatSession|persistedChat)/i;
+
+  function clearPersistedSession() {
+    [localStorage, sessionStorage].forEach(function (store) {
+      try {
+        Object.keys(store)
+          .filter(function (k) {
+            // Never touch this demo's own state — that is what restores the
+            // selection after the reload.
+            return SESSION_KEY_PATTERN.test(k) && k.indexOf('quirepress-demo:') !== 0;
+          })
+          .forEach(function (k) { store.removeItem(k); });
+      } catch (e) { /* storage can throw in private mode; not load-bearing */ }
+    });
+  }
 
   var state = {
     loaded: false,
@@ -215,8 +250,19 @@ var CONNECT_WIDGET_CONFIG = {
     return true;
   }
 
+  /**
+   * Swap the widget to a new set of attributes.
+   *
+   * Always clears the persisted chat session first: whichever strategy runs,
+   * a surviving session would be rejoined rather than replaced, and a rejoined
+   * contact keeps the attributes it was created with.
+   */
   function reload(opts) {
+    opts = opts || {};
+    clearPersistedSession();
+
     if (RELOAD_STRATEGY === 'page') {
+      if (opts.onStatus) opts.onStatus('warn', 'Reloading page with the new context…');
       location.reload();
       return true;
     }
@@ -229,6 +275,8 @@ var CONNECT_WIDGET_CONFIG = {
     destroy: destroy,
     isConfigured: isConfigured,
     normalizeAttributes: normalizeAttributes,
+    clearPersistedSession: clearPersistedSession,
+    get reloadStrategy() { return RELOAD_STRATEGY; },
     get config() { return config(); },
     get isLoaded() { return state.loaded; },
     // True once anything has been injected, including a script that errored.

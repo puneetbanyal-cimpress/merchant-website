@@ -32,10 +32,15 @@
    'cbDesc','cbCount','cbBack','cbNext','cbSubmit','cbClose','cbStatus','cbDoneMsg'
   ].forEach(function (id) { ui[id] = document.getElementById(id); });
 
-  /** The shopper whose context is currently live (null = none). */
+  /**
+   * The shopper whose context is live (null = none).
+   *
+   * The dropdown writes straight to this — there is deliberately no separate
+   * "staged" selection. Holding a pending value that only the button committed
+   * meant the widget and the callback form could disagree with what the
+   * dropdown visibly said, which is exactly the confusion this had.
+   */
   var active = null;
-  /** The dropdown selection, which may not be applied yet. */
-  var pending = null;
   /** Wizard position: 1, 2, or 'done'. */
   var step = 1;
   /** Fields the user has actually focused, so blur only scolds touched ones. */
@@ -56,7 +61,6 @@
     try { saved = localStorage.getItem(STATE_KEY) || ''; } catch (e) {}
     var qp = new URLSearchParams(location.search).get('shopperId');
     active = findShopper(qp || saved);
-    pending = active;
   }
 
   function persist() {
@@ -156,8 +160,17 @@
    */
   function syncWidget(isUserAction) {
     if (!hasContext()) {
+      window.ConnectWidget.clearPersistedSession();
       // hasWidget, not isLoaded — a script that errored still left its tag.
-      if (window.ConnectWidget.hasWidget) window.ConnectWidget.destroy();
+      if (window.ConnectWidget.hasWidget) {
+        // Under the page strategy a live widget can't be reliably removed in
+        // place, so reload into a clean page with no context.
+        if (isUserAction && window.ConnectWidget.reloadStrategy === 'page') {
+          location.reload();
+          return false;
+        }
+        window.ConnectWidget.destroy();
+      }
       setStatus('warn', 'No chat context — widget not loaded');
       return false;
     }
@@ -165,14 +178,24 @@
       setStatus('warn', 'Widget not configured — set CONNECT_WIDGET_CONFIG in connect-widget.js');
       return false;
     }
-    if (isUserAction) setStatus('warn', 'Reloading widget…');
-    // The amazon_connect() config calls are consumed once at boot, so the widget
-    // must be torn down and rebooted for new attributes to reach the flow.
-    return window.ConnectWidget.reload({ attributes: buildAttributes(), onStatus: setStatus });
+
+    // The amazon_connect() config calls are consumed once at boot, so new
+    // attributes only reach the flow via a fresh boot.
+    //
+    // On first paint the widget has never booted, so load() directly — calling
+    // reload() here would trigger location.reload() under the page strategy and
+    // the page would refresh forever.
+    var start = isUserAction ? window.ConnectWidget.reload : window.ConnectWidget.load;
+    return start({ attributes: buildAttributes(), onStatus: setStatus });
   }
 
+  /**
+   * Commit whatever the dropdown currently shows and reboot the widget.
+   * Called by the dropdown itself and by the button, so the two can never
+   * disagree about which shopper is live.
+   */
   function applyContext() {
-    active = pending;
+    active = findShopper(ui.shopperSelect.value);
     persist();
     render();
     if (!active) ui.shopperSelect.focus();
@@ -333,16 +356,9 @@
   /* ----------------------------------------------------------------- wiring */
 
   function wire() {
-    ui.shopperSelect.addEventListener('change', function () {
-      pending = findShopper(ui.shopperSelect.value);
-      // Selecting alone does not change the live context — the button does.
-      if (pending !== active) {
-        setStatus('warn', pending
-          ? 'Selected ' + fullName(pending) + ' — hit "Set chat context" to apply'
-          : 'Cleared — hit "Set chat context" to unload the widget');
-      }
-    });
-
+    // Changing the dropdown IS changing the context. The button is a manual
+    // re-apply for when you want to reboot the widget without switching shopper.
+    ui.shopperSelect.addEventListener('change', applyContext);
     ui.btnSetContext.addEventListener('click', applyContext);
 
     ui.btnOpenChat.addEventListener('click', function () {
