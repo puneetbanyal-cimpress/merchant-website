@@ -210,7 +210,7 @@ var CONNECT_WIDGET_CONFIG = {
     document.head.appendChild(s);
     state.scriptEl = s;
 
-    console.info('[commerce-hub-demo] widget booting with attributes:', attrs);
+    console.info('[quirepress] widget booting with attributes:', attrs);
     say('warn', 'Loading widget…');
     return true;
   }

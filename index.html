@@ -3,19 +3,19 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Commerce Hub Website — Amazon Connect demo</title>
+<title>Quirepress — Amazon Connect demo</title>
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
 <link rel="stylesheet" href="styles.css" />
-<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%23111827'/><text x='16' y='23' font-size='19' font-family='Inter,sans-serif' font-weight='700' fill='white' text-anchor='middle'>C</text></svg>" />
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%23124754'/><text x='16' y='23' font-size='18' font-family='Inter,sans-serif' font-weight='700' fill='white' text-anchor='middle'>Q</text></svg>" />
 </head>
 <body>
 
 <header class="site-header">
   <div class="wrap site-header__inner">
-    <a class="logo" href="#" aria-label="Commerce Hub home">
-      <span class="logo__mark">C</span><span class="logo__word">Commerce Hub</span>
+    <a class="logo" href="#" aria-label="Quirepress home">
+      <span class="logo__mark">Q</span><span class="logo__word">Quirepress</span>
     </a>
     <nav class="nav" aria-label="Primary">
       <a href="#contact">Business Cards</a>
@@ -36,25 +36,24 @@
 <section class="hero">
   <div class="wrap hero__inner">
     <div class="hero__copy">
-      <p class="eyebrow">Commerce Hub Website</p>
+      <p class="eyebrow">Quirepress</p>
       <h1>How can we help?</h1>
-      <p class="lede">
-        Set a shopper ID below and start a chat — the agent sees it before you type a word.
-      </p>
+      <p class="lede">Set a shopper ID below and start a chat.</p>
     </div>
 
     <div class="hero__panel">
       <div class="shopper-box">
-        <label class="shopper-box__label" for="shopperIdInput">Shopper ID</label>
+        <label class="shopper-box__label" for="shopperSelect">Shopper</label>
         <div class="shopper-box__row">
-          <input id="shopperIdInput" type="text" placeholder="e.g. SHP-77341"
-                 autocomplete="off" spellcheck="false" />
-          <button class="btn btn--primary" id="btnAddShopperId" type="button">Add Shopper ID</button>
+          <select id="shopperSelect">
+            <option value="">Select a shopper…</option>
+          </select>
+          <button class="btn btn--primary" id="btnSetContext" type="button">Set chat context</button>
         </div>
-        <p class="shopper-box__current">
-          Sent to Amazon Connect as
-          <code>HostedWidget-shopperId</code>:
-          <b id="currentShopperId">—</b>
+
+        <dl class="shopper-box__ctx" id="shopperCtx"></dl>
+        <p class="shopper-box__empty" id="shopperCtxEmpty">
+          Nothing selected — the chat widget stays unloaded until a shopper is set.
         </p>
         <p class="widget-status" id="widgetStatus">Widget not loaded</p>
       </div>
@@ -67,15 +66,15 @@
   <section id="contact" class="contact">
     <h2>Contact Us</h2>
     <p class="contact__lede">
-      Three ways to reach us. Chat is fastest — the agent already has your shopper ID.
+      Three ways to reach us. Chat is fastest — the agent already has your shopper details.
     </p>
     <div class="contact-grid">
 
       <div class="contact-card">
-        <h3>Commerce Hub Assistant</h3>
-        <p class="status-line" id="assistantStatus">
+        <h3>Quirepress Assistant</h3>
+        <p class="status-line">
           <span class="status-dot status-dot--grey" id="assistantDot"></span>
-          <span id="assistantStatusText">Add a Shopper ID to start</span>
+          <span id="assistantStatusText">Set a chat context to start</span>
         </p>
         <p class="contact-card__body">
           Chat with our AI assistant or connect with a specialist at any time.
@@ -94,7 +93,7 @@
           <span>Mon – Fri</span><span>7:00 AM – 3:00 AM EST</span>
           <span>Sat – Sun</span><span>8:00 AM – 8:00 PM EST</span>
         </div>
-        <a class="phone-number" id="phoneNumber" href="tel:+18775203804">
+        <a class="phone-number" href="tel:+18775203804">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.36 1.9.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.9.34 1.85.57 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
           <span>+1 (877) 520-3804</span>
         </a>
@@ -111,15 +110,15 @@
         <p class="status-line status-line--muted">
           <span class="status-dot status-dot--amber"></span>Replies within 24 hours
         </p>
-        <a class="email-address" href="mailto:contactus@commercehub-cimpress.com">
+        <a class="email-address" href="mailto:contactus@quirepress-cimpress.com">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-10 6L2 7"/></svg>
-          <span>contactus@commercehub-cimpress.com</span>
+          <span>contactus@quirepress-cimpress.com</span>
         </a>
         <p class="contact-card__body">
           Send us your order number and a short description — attachments welcome.
         </p>
         <div class="contact-card__foot">
-          <a class="btn btn--outline" href="mailto:contactus@commercehub-cimpress.com">Write to us</a>
+          <a class="btn btn--outline" href="mailto:contactus@quirepress-cimpress.com">Write to us</a>
         </div>
       </div>
 
@@ -130,11 +129,118 @@
 
 <footer class="site-footer">
   <div class="wrap site-footer__inner">
-    <span>Commerce Hub Website — a demo of Amazon Connect chat context passing.</span>
+    <span>Quirepress — a demo of Amazon Connect chat context passing.</span>
     <span class="site-footer__ctx">shopperId: <code id="footerCtx">—</code></span>
   </div>
 </footer>
 
+<!-- ============ REQUEST A CALLBACK ============ -->
+<dialog id="callbackDialog" class="cb" aria-labelledby="cbTitle">
+  <form method="dialog" class="cb__close-form">
+    <button class="cb__close" type="submit" value="dismiss" aria-label="Close">&times;</button>
+  </form>
+
+  <div class="cb__body" id="cbBody">
+    <h2 id="cbTitle">Request a callback</h2>
+    <p class="cb__lede">
+      Tell us how to reach you and we'll call within five minutes during opening hours.
+    </p>
+
+    <form id="callbackForm" class="cb__form" novalidate>
+      <div class="cb__field">
+        <label for="cbName">Full name</label>
+        <input id="cbName" name="fullName" type="text" required autocomplete="name" />
+        <span class="cb__error">Please enter your name.</span>
+      </div>
+
+      <div class="cb__field">
+        <label for="cbEmail">Email address</label>
+        <input id="cbEmail" name="email" type="email" required autocomplete="email" />
+        <span class="cb__error">Please enter a valid email address.</span>
+      </div>
+
+      <div class="cb__field">
+        <label for="cbPhone">Phone number</label>
+        <div class="cb__phone">
+          <select id="cbCountry" name="countryCode" aria-label="Country calling code">
+            <option value="+1" selected>US +1</option>
+            <option value="+1-CA">CA +1</option>
+            <option value="+44">UK +44</option>
+            <option value="+91">IN +91</option>
+            <option value="+61">AU +61</option>
+            <option value="+49">DE +49</option>
+          </select>
+          <input id="cbPhone" name="phone" type="tel" required autocomplete="tel"
+                 inputmode="tel" placeholder="555 010 4477" />
+        </div>
+        <span class="cb__error">Please enter a phone number we can call.</span>
+      </div>
+
+      <div class="cb__field">
+        <label for="cbReason">What's this about?</label>
+        <select id="cbReason" name="reason" required>
+          <option value="">Choose a topic…</option>
+          <option value="order-status">Order status or delivery</option>
+          <option value="reprint-refund">Reprint or refund</option>
+          <option value="design-help">Design or artwork help</option>
+          <option value="billing">Billing or payment</option>
+          <option value="other">Something else</option>
+        </select>
+        <span class="cb__error">Please choose a topic.</span>
+      </div>
+
+      <div class="cb__row">
+        <div class="cb__field">
+          <label for="cbOrder">Order number <span class="cb__opt">(optional)</span></label>
+          <input id="cbOrder" name="orderNumber" type="text" placeholder="ORD-2026-004512" />
+        </div>
+        <div class="cb__field">
+          <label for="cbWhen">When should we call?</label>
+          <select id="cbWhen" name="preferredTime">
+            <option value="asap" selected>As soon as possible</option>
+            <option value="within-hour">Within the next hour</option>
+            <option value="later-today">Later today</option>
+            <option value="tomorrow">Tomorrow</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="cb__field">
+        <label for="cbNotes">Anything else we should know? <span class="cb__opt">(optional)</span></label>
+        <textarea id="cbNotes" name="notes" rows="2"
+                  placeholder="A sentence or two helps us route your call."></textarea>
+      </div>
+
+      <div class="cb__consent">
+        <input id="cbConsent" name="consent" type="checkbox" required />
+        <label for="cbConsent">
+          I agree to be contacted on this number about my enquiry.
+        </label>
+      </div>
+      <span class="cb__error cb__error--consent">Please confirm we can call you.</span>
+
+      <p class="cb__ctxnote" id="cbCtxNote"></p>
+
+      <div class="cb__actions">
+        <button class="btn btn--ghost-light" type="button" id="cbCancel">Cancel</button>
+        <button class="btn btn--primary" type="submit" id="cbSubmit">Request callback</button>
+      </div>
+      <p class="cb__status" id="cbStatus" role="status" aria-live="polite"></p>
+    </form>
+  </div>
+
+  <div class="cb__done" id="cbDone" hidden>
+    <div class="cb__tick" aria-hidden="true">
+      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m20 6-11 11-5-5"/></svg>
+    </div>
+    <h2>We'll call you shortly</h2>
+    <p id="cbDoneMsg"></p>
+    <button class="btn btn--primary" type="button" id="cbDoneClose">Done</button>
+  </div>
+</dialog>
+
+<script src="shoppers.js"></script>
+<script src="callback-api.js"></script>
 <script src="connect-widget.js"></script>
 <script src="app.js"></script>
 </body>
