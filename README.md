@@ -96,6 +96,8 @@ The payload:
 
 Reshape it in `buildPayload()` if the real contract differs. Non-2xx responses and timeouts surface inline in the dialog rather than closing it.
 
+**Building the backend?** `docs/lambda-agent-prompt.md` is a self-contained brief for whoever implements the endpoint — the exact request contract, the response shape the UI expects, the CORS requirements, and the abuse/idempotency constraints that come with an endpoint that dials phones.
+
 ---
 
 ## Widget config
@@ -126,6 +128,7 @@ callback-api.js     CALLBACK_API config, payload shape, POST + simulation mode
 connect-widget.js   CONNECT_WIDGET_CONFIG + widget load / teardown / reload
 app.js              state and wiring
 netlify.toml        publish dir + headers
+docs/               lambda-agent-prompt.md — brief for the callback endpoint
 ```
 
 ---
