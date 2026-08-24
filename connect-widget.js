@@ -187,8 +187,9 @@ var CONNECT_WIDGET_CONFIG = {
 
   /**
    * @param {object}   opts
-   * @param {object}   opts.attributes  string->string map
-   * @param {function} [opts.onStatus]  (level, message) => void
+   * @param {object}   opts.attributes     string->string map
+   * @param {string}   [opts.displayName]  customer display name shown in the chat UI
+   * @param {function} [opts.onStatus]     (level, message) => void
    */
   function load(opts) {
     opts = opts || {};
@@ -226,8 +227,25 @@ var CONNECT_WIDGET_CONFIG = {
       window.amazon_connect('supportedMessagingContentTypes', cfg.supportedMessagingContentTypes);
     }
 
+    // The customer's display name. Note the CALLBACK form — passing a bare
+    // string here is silently ignored and the chat falls back to "Customer".
+    // 1–256 chars; empty/null logs "Invalid customerDisplayName provided".
+    //
+    // This sets ParticipantDetails.DisplayName on StartChatContact, which is
+    // what the customer sees in their own chat window, what the agent sees in
+    // the CCP, and what lands in the transcript. It is NOT a contact attribute,
+    // so Streams cannot read it back — that is why displayName is also sent in
+    // contactAttributes below.
+    var displayName = String(opts.displayName || '').trim().slice(0, 256);
+    if (displayName) {
+      window.amazon_connect('customerDisplayName', function (callback) {
+        callback(displayName);
+      });
+    }
+
     // Keys arrive in the contact flow PREFIXED: HostedWidget-shopperId.
-    // Read them with a "Check contact attributes" block, namespace "User defined".
+    // Read them with a "Check contact attributes" block, namespace "User defined",
+    // or in Streams with contact.getAttributes().
     window.amazon_connect('contactAttributes', attrs);
 
     var s = document.createElement('script');

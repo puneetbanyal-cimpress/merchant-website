@@ -76,7 +76,12 @@
     return window.ConnectWidget.normalizeAttributes({
       shopperId: active.shopperId,
       firstName: active.firstName,
-      lastName: active.lastName
+      lastName: active.lastName,
+      // Sent as an attribute as well as via customerDisplayName: the display
+      // name itself is a chat participant detail, not a contact attribute, so
+      // Streams' contact.getAttributes() cannot see it. Duplicating it here is
+      // what makes the same string readable from a custom CCP.
+      displayName: fullName(active)
     });
   }
 
@@ -186,7 +191,11 @@
     // reload() here would trigger location.reload() under the page strategy and
     // the page would refresh forever.
     var start = isUserAction ? window.ConnectWidget.reload : window.ConnectWidget.load;
-    return start({ attributes: buildAttributes(), onStatus: setStatus });
+    return start({
+      attributes: buildAttributes(),
+      displayName: fullName(active),
+      onStatus: setStatus
+    });
   }
 
   /**

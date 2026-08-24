@@ -16,15 +16,39 @@ The hero has one control: a **Shopper** dropdown and a **Set chat context** butt
 
 There is deliberately no "staged" selection waiting on a button press: a pending value the button had to commit meant the widget and the callback form could disagree with what the dropdown visibly said.
 
-Three attributes go across:
+Four attributes go across:
 
-| Attribute | In the contact flow |
+| Attribute | In the contact flow / Streams |
 |---|---|
 | `shopperId` | `HostedWidget-shopperId` |
 | `firstName` | `HostedWidget-firstName` |
 | `lastName` | `HostedWidget-lastName` |
+| `displayName` | `HostedWidget-displayName` |
 
-Read them with a **Check contact attributes** block, namespace **User defined**. The hosted widget prepends `HostedWidget-` to every key — that prefix is the single most common thing people get wrong here.
+Read them with a **Check contact attributes** block, namespace **User defined**, or in Streams with `contact.getAttributes()`. The hosted widget prepends `HostedWidget-` to every key — that prefix is the single most common thing people get wrong here.
+
+### The customer display name
+
+Separately from the attributes, the widget is given the customer's display name:
+
+```js
+amazon_connect('customerDisplayName', function (callback) {
+  callback('Paul Harraghy');
+});
+```
+
+Note the **callback form** — passing a bare string is silently ignored and the chat falls back to the default name "Customer". The value must be 1–256 characters; empty or null logs `Invalid customerDisplayName provided`.
+
+This sets `ParticipantDetails.DisplayName` on `StartChatContact`, which is what the customer sees in their own chat window, what the agent sees in the CCP, and what appears in the transcript.
+
+**It is not a contact attribute**, so `contact.getAttributes()` in Streams cannot read it back — Streams exposes no participant DisplayName. That is why the same string is *also* sent as the `displayName` attribute above. In a custom CCP:
+
+```js
+var attrs = contact.getAttributes();
+var name = attrs['HostedWidget-displayName'].value;   // note .value
+```
+
+`getAttributes()` returns `{ name, value }` objects, not bare strings — reading `attrs['x']` directly gives you an object and renders as `[object Object]`.
 
 **The widget is gated on that context.** With nothing selected, the widget script is never injected and no chat bubble appears; the Assistant card reads "Set a chat context to start". Clearing the selection tears down an already-loaded widget. This makes it impossible to open a chat carrying an empty or stale context.
 
