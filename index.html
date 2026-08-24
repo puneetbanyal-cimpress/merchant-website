@@ -250,6 +250,61 @@
   </div>
 </dialog>
 
+<!-- ============ HIDDEN: RUNTIME SHOPPER ADMIN ============ -->
+<!-- Reachable only via ?addShopper or #add-shopper. Nothing on the page links
+     to it. Entries live in localStorage, so they are per-browser and temporary. -->
+<dialog id="adminDialog" class="adm" aria-labelledby="admTitle">
+  <div class="adm__body">
+    <h2 id="admTitle">Add a shopper</h2>
+    <p class="adm__lede">
+      Temporary, stored in this browser only. Added shoppers appear in the dropdown
+      alongside the built-in ones and behave identically.
+    </p>
+
+    <form id="admForm" novalidate>
+      <div class="adm__row">
+        <div class="adm__field">
+          <label for="admFirst">First name</label>
+          <input id="admFirst" type="text" autocomplete="off" />
+        </div>
+        <div class="adm__field">
+          <label for="admLast">Last name</label>
+          <input id="admLast" type="text" autocomplete="off" />
+        </div>
+      </div>
+      <div class="adm__field">
+        <label for="admId">Shopper ID</label>
+        <input id="admId" type="text" autocomplete="off" spellcheck="false" />
+      </div>
+      <p class="adm__error" id="admError" role="alert"></p>
+      <div class="adm__actions">
+        <button class="btn btn--primary" type="submit" id="admAdd">Add shopper</button>
+      </div>
+    </form>
+
+    <div class="adm__list-wrap">
+      <div class="adm__list-head">
+        <h3>Added in this browser <span id="admCount">(0)</span></h3>
+        <button class="adm__clear" type="button" id="admClear" hidden>Remove all</button>
+      </div>
+      <ul class="adm__list" id="admList"></ul>
+      <p class="adm__empty" id="admEmpty">None yet.</p>
+    </div>
+
+    <details class="adm__help">
+      <summary>Other ways to add one</summary>
+      <p>Straight from the address bar, no typing in this form:</p>
+      <code class="adm__code">?addShopper&amp;firstName=Ada&amp;lastName=Lovelace&amp;shopperId=ABC-123</code>
+      <p>Or from the browser console:</p>
+      <code class="adm__code">__ADD_SHOPPER__({firstName:'Ada', lastName:'Lovelace', shopperId:'ABC-123'})</code>
+    </details>
+
+    <div class="adm__foot">
+      <button class="btn btn--outline" type="button" id="admClose">Close</button>
+    </div>
+  </div>
+</dialog>
+
 <script src="shoppers.js"></script>
 <script src="callback-api.js"></script>
 <script src="connect-widget.js"></script>

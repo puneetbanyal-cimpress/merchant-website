@@ -75,6 +75,36 @@ Selection persists in `localStorage`, and `?shopperId=<id>` in the URL pre-seeds
 
 Every value must be a **string** — Amazon Connect rejects non-strings and the chat fails to start with no useful error. `normalizeAttributes` coerces and drops empties as a backstop.
 
+### Adding shoppers at runtime (hidden route)
+
+For trying an ID without a redeploy, there is an unlinked panel at:
+
+```
+https://commerce-hub-website.netlify.app/?addShopper
+https://commerce-hub-website.netlify.app/#add-shopper
+```
+
+Nothing on the page links to it. Added shoppers land in `localStorage`, appear in the dropdown marked `(added)`, and behave exactly like the built-in ones — same attributes, same display name, same callback prefill.
+
+Two shortcuts, both shown inside the panel:
+
+```
+?addShopper&firstName=Ada&lastName=Lovelace&shopperId=ABC-123
+```
+
+```js
+__ADD_SHOPPER__({ firstName: 'Ada', lastName: 'Lovelace', shopperId: 'ABC-123' })
+__CLEAR_SHOPPERS__()
+```
+
+The deep link both adds *and* selects that shopper, since `shopperId` is also the param that pre-seeds the context.
+
+Rejected: blank fields, a duplicate ID (built-in or added), and a name over 256 characters — the same ceiling Amazon Connect puts on the display name. Removing the shopper that is currently live also clears the context, so the widget can't keep sending someone who is no longer in the list. Malformed entries in `localStorage` are filtered out on read rather than reaching Connect.
+
+**This is a scratch pad, not storage.** Entries are per-browser — another machine, another browser, or cleared site data all start from the built-in list. Anything worth keeping belongs in `shoppers.js`.
+
+> Consumed params (`shopperId`, `addShopper`, `firstName`, `lastName`, and the `#add-shopper` hash) are stripped from the address bar once read. Switching shopper reloads the page, and the query string outranks `localStorage` on boot — a leftover `?shopperId=` would silently override every later selection and snap the demo back to the linked shopper.
+
 ---
 
 ## Request a callback

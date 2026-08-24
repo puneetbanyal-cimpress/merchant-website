@@ -16,7 +16,8 @@
   'use strict';
 
   var STATE_KEY = 'quirepress-demo:shopperId';
-  var SHOPPERS = window.DEMO_SHOPPERS || [];
+  var CUSTOM_KEY = 'quirepress-demo:customShoppers';
+  var BUILT_IN = window.DEMO_SHOPPERS || [];
   var REASONS = window.CONTACT_REASONS || [];
   var REGIONS = window.COUNTRY_REGIONS || [];
   var HOURS = window.WORKING_HOURS || [];
@@ -29,7 +30,9 @@
    'cbDialog','cbExit','cbHours','cbProgress','cbStep1','cbStep2','cbDone',
    'cbGreeting','cbIdentValue','cbIdentSep','cbNotYou','cbStepTitle',
    'cbForm1','cbForm2','cbReason','cbFirst','cbLast','cbCountry','cbPhone','cbConsent',
-   'cbDesc','cbCount','cbBack','cbNext','cbSubmit','cbClose','cbStatus','cbDoneMsg'
+   'cbDesc','cbCount','cbBack','cbNext','cbSubmit','cbClose','cbStatus','cbDoneMsg',
+   'adminDialog','admForm','admFirst','admLast','admId','admError','admAdd',
+   'admList','admEmpty','admCount','admClear','admClose'
   ].forEach(function (id) { ui[id] = document.getElementById(id); });
 
   /**
@@ -48,8 +51,35 @@
 
   /* ------------------------------------------------------------------ state */
 
+  /**
+   * Shoppers added at runtime through the hidden ?addShopper route.
+   * Stored per-browser, so they are a scratch pad for a demo rather than data.
+   */
+  var custom = [];
+
+  function loadCustom() {
+    var raw = null;
+    try { raw = JSON.parse(localStorage.getItem(CUSTOM_KEY) || '[]'); } catch (e) {}
+    if (!Array.isArray(raw)) return [];
+    // Re-validate on read: hand-edited localStorage would otherwise put a
+    // malformed entry straight into the attributes sent to Amazon Connect.
+    return raw.filter(function (s) {
+      return s && typeof s.firstName === 'string' && typeof s.lastName === 'string' &&
+             typeof s.shopperId === 'string' && s.shopperId.trim() !== '';
+    });
+  }
+
+  function saveCustom() {
+    try { localStorage.setItem(CUSTOM_KEY, JSON.stringify(custom)); } catch (e) {}
+  }
+
+  /** Built-ins first, then anything added at runtime. */
+  function allShoppers() {
+    return BUILT_IN.concat(custom);
+  }
+
   function findShopper(id) {
-    return SHOPPERS.find(function (s) { return s.shopperId === id; }) || null;
+    return allShoppers().find(function (s) { return s.shopperId === id; }) || null;
   }
 
   function fullName(s) {
@@ -68,6 +98,32 @@
       if (active) localStorage.setItem(STATE_KEY, active.shopperId);
       else localStorage.removeItem(STATE_KEY);
     } catch (e) {}
+  }
+
+  /**
+   * Strip our own params out of the address bar once they have been read.
+   *
+   * Switching shopper reloads the page (see connect-widget.js), and restore()
+   * gives the query string priority over localStorage — so a ?shopperId= left
+   * sitting in the URL would silently override every later selection and snap
+   * the demo back to the linked shopper. A stale #add-shopper would likewise
+   * re-open the admin panel on every switch.
+   *
+   * Called once at the end of boot, after everything that reads them has run.
+   */
+  function cleanUrl() {
+    if (!window.history || !history.replaceState) return;
+    var url = new URL(location.href);
+    var touchedUrl = false;
+
+    ['shopperId', 'addShopper', 'firstName', 'lastName'].forEach(function (k) {
+      if (url.searchParams.has(k)) { url.searchParams.delete(k); touchedUrl = true; }
+    });
+    if (url.hash === '#add-shopper') { url.hash = ''; touchedUrl = true; }
+
+    if (touchedUrl) {
+      history.replaceState(null, '', url.pathname + (url.search || '') + (url.hash || ''));
+    }
   }
 
   /** The exact string->string map handed to Amazon Connect. */
@@ -91,13 +147,29 @@
 
   /* --------------------------------------------------------------- rendering */
 
-  function buildStaticOptions() {
-    SHOPPERS.forEach(function (s) {
+  /** Rebuilt whenever a runtime shopper is added or removed. */
+  function rebuildShopperOptions() {
+    var keep = ui.shopperSelect.value;
+    ui.shopperSelect.innerHTML = '';
+
+    var blank = document.createElement('option');
+    blank.value = '';
+    blank.textContent = 'Select a shopper…';
+    ui.shopperSelect.appendChild(blank);
+
+    allShoppers().forEach(function (s, i) {
       var o = document.createElement('option');
       o.value = s.shopperId;
-      o.textContent = fullName(s);
+      o.textContent = fullName(s) + (i >= BUILT_IN.length ? ' (added)' : '');
       ui.shopperSelect.appendChild(o);
     });
+
+    // Only restore the selection if that shopper still exists.
+    ui.shopperSelect.value = findShopper(keep) ? keep : '';
+  }
+
+  function buildStaticOptions() {
+    rebuildShopperOptions();
 
     REASONS.forEach(function (r) {
       var o = document.createElement('option');
@@ -362,6 +434,147 @@
     showStep('done');
   }
 
+
+  /* --------------------------------------------------- hidden shopper admin */
+
+  /**
+   * Reachable only via ?addShopper or #add-shopper — nothing on the page links
+   * to it. Entries are per-browser localStorage, so they are a scratch pad for
+   * a demo, not data: another machine, another browser, or a cleared cache all
+   * start from the built-in list again.
+   */
+  function adminRouteRequested() {
+    var qp = new URLSearchParams(location.search);
+    return qp.has('addShopper') || location.hash === '#add-shopper';
+  }
+
+  /**
+   * @returns {string} '' on success, otherwise the reason it was rejected.
+   */
+  function addShopper(entry) {
+    var first = String((entry && entry.firstName) || '').trim();
+    var last = String((entry && entry.lastName) || '').trim();
+    var id = String((entry && entry.shopperId) || '').trim();
+
+    if (!first) return 'First name is required.';
+    if (!last) return 'Last name is required.';
+    if (!id) return 'Shopper ID is required.';
+    // Same rule Amazon Connect applies to the display name.
+    if ((first + ' ' + last).length > 256) return 'Name is longer than 256 characters.';
+    if (findShopper(id)) return 'A shopper with that ID already exists.';
+
+    custom.push({ firstName: first, lastName: last, shopperId: id });
+    saveCustom();
+    rebuildShopperOptions();
+    renderAdminList();
+    return '';
+  }
+
+  function removeShopper(id) {
+    custom = custom.filter(function (s) { return s.shopperId !== id; });
+    saveCustom();
+    // Removing the shopper that is currently live must also drop the context,
+    // otherwise the widget keeps sending a shopper the list no longer contains.
+    if (active && active.shopperId === id) {
+      active = null;
+      persist();
+      render();
+      syncWidget(true);
+    }
+    rebuildShopperOptions();
+    renderAdminList();
+  }
+
+  function renderAdminList() {
+    ui.admList.innerHTML = '';
+    custom.forEach(function (s) {
+      var li = document.createElement('li');
+
+      var text = document.createElement('div');
+      text.className = 'adm__item-text';
+      var name = document.createElement('strong');
+      name.textContent = fullName(s);
+      var id = document.createElement('code');
+      id.textContent = s.shopperId;
+      id.title = s.shopperId;
+      text.appendChild(name);
+      text.appendChild(id);
+
+      var rm = document.createElement('button');
+      rm.type = 'button';
+      rm.className = 'adm__remove';
+      rm.textContent = '\u00d7';
+      rm.title = 'Remove ' + fullName(s);
+      rm.setAttribute('aria-label', 'Remove ' + fullName(s));
+      rm.addEventListener('click', function () { removeShopper(s.shopperId); });
+
+      li.appendChild(text);
+      li.appendChild(rm);
+      ui.admList.appendChild(li);
+    });
+
+    ui.admEmpty.hidden = custom.length > 0;
+    ui.admClear.hidden = custom.length === 0;
+    ui.admCount.textContent = '(' + custom.length + ')';
+  }
+
+  function openAdmin() {
+    ui.admError.textContent = '';
+    renderAdminList();
+    ui.adminDialog.showModal();
+    ui.admFirst.focus();
+  }
+
+  function wireAdmin() {
+    ui.admForm.addEventListener('submit', function (e) {
+      e.preventDefault();
+      var err = addShopper({
+        firstName: ui.admFirst.value,
+        lastName: ui.admLast.value,
+        shopperId: ui.admId.value
+      });
+      ui.admError.textContent = err;
+      if (err) return;
+      ui.admFirst.value = '';
+      ui.admLast.value = '';
+      ui.admId.value = '';
+      ui.admFirst.focus();
+    });
+
+    ui.admClear.addEventListener('click', function () {
+      custom.slice().forEach(function (s) { removeShopper(s.shopperId); });
+    });
+
+    ui.admClose.addEventListener('click', function () { ui.adminDialog.close(); });
+    ui.adminDialog.addEventListener('click', function (e) {
+      if (e.target === ui.adminDialog) ui.adminDialog.close();
+    });
+
+    // Deep link: ?addShopper&firstName=Ada&lastName=Lovelace&shopperId=ABC-123
+    // adds in one go, for scripted demos with no typing.
+    var qp = new URLSearchParams(location.search);
+    if (qp.has('addShopper') && qp.get('shopperId')) {
+      var err = addShopper({
+        firstName: qp.get('firstName'),
+        lastName: qp.get('lastName'),
+        shopperId: qp.get('shopperId')
+      });
+      if (err) console.warn('[quirepress] addShopper via URL rejected:', err);
+    }
+
+    // Console escape hatch, always available.
+    window.__ADD_SHOPPER__ = function (entry) {
+      var err = addShopper(entry);
+      if (err) { console.warn('[quirepress]', err); return false; }
+      console.info('[quirepress] added', entry);
+      return true;
+    };
+    window.__CLEAR_SHOPPERS__ = function () {
+      custom.slice().forEach(function (s) { removeShopper(s.shopperId); });
+      return true;
+    };
+  }
+
   /* ----------------------------------------------------------------- wiring */
 
   function wire() {
@@ -443,11 +656,15 @@
 
   /* -------------------------------------------------------------------- go */
 
+  custom = loadCustom();
   buildStaticOptions();
   restore();
   ui.shopperSelect.value = active ? active.shopperId : '';
   render();
   wire();
+  wireAdmin();
+  if (adminRouteRequested()) openAdmin();
+  cleanUrl();
 
   // Handy during a demo: `__DEMO_CONTEXT__` shows what the next chat will carry.
   Object.defineProperty(window, '__DEMO_CONTEXT__', {

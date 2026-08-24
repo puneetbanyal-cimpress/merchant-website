@@ -12,6 +12,16 @@
  */
 window.DEMO_SHOPPERS = [
   {
+    firstName: 'Puneet',
+    lastName: 'Banyal - (NP)',
+    shopperId: 'nVke2QV2-01KYVXXPBJ47EWXRAKBXPKWWF2'
+  },
+  {
+    firstName: 'Vishal',
+    lastName: 'Bhoriwal - (NP)',
+    shopperId: 'nVke2QV2-01KXNFDK4SP5DYPF2CS3CH43BG'
+  },
+  {
     firstName: 'Paul',
     lastName: 'Harraghy',
     shopperId: 'd2FyaG9s-237A146D7D6859E2CE8BEFDCAB4D38F9'
