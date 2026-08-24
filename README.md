@@ -188,6 +188,10 @@ The payload:
 }
 ```
 
+All fourteen keys are always sent, in that order. Every value is a string except `consentToCallRecording`; nothing is ever `null` — an absent phone or shopper goes as `""`. Two reasons that matters: `JSON.stringify` **drops** a key whose value is `undefined` rather than sending null, so an unset field would silently vanish from the body; and a constant type per field means the API never has to special-case a null before trimming it or passing it to Connect.
+
+The exact serialised body is logged to the browser console on every submit, so it can be diffed against a Postman request character for character.
+
 Reshape it in `buildPayload()` if the real contract differs. Non-2xx responses and timeouts surface inline in the dialog rather than closing it.
 
 **Building the backend?** `docs/lambda-agent-prompt.md` is a self-contained brief for whoever implements the endpoint — the exact request contract, the response shape the UI expects, the CORS requirements, and the abuse/idempotency constraints that come with an endpoint that dials phones.

@@ -29,38 +29,55 @@ var CALLBACK_API = {
   /**
    * Build the request body from both wizard steps plus the active chat context.
    *
-   * Kept as one function so the payload shape is obvious and easy to reshape
-   * when the real API's contract lands.
+   * The shape is fixed by the API contract: these fourteen keys, in this order,
+   * every one always present. Two rules keep it that way:
+   *
+   *  - Every string field is forced to a string. `undefined` is not "null" to
+   *    JSON.stringify — it DROPS the key entirely, so a single unset value would
+   *    silently send a body missing a field the API requires.
+   *  - Nothing is ever null. An absent phone number or shopper is sent as '',
+   *    so each field's type is constant and the API never has to special-case
+   *    a null before trimming it or handing it to Connect.
+   *
+   * Only `consentToCallRecording` is a boolean.
    *
    * @param {object} form     values collected across step 1 and step 2
    * @param {object} context  the current chat context (shopperId/firstName/lastName)
    * @param {string} nowIso   ISO timestamp for the request
    */
   function buildPayload(form, context, nowIso) {
-    var digits = (form.phone || '').replace(/[^\d]/g, '');
-    var dial = (form.dialCode || '').replace(/[^\d+]/g, '');
+    form = form || {};
+    context = context || {};
+
+    var str = function (v) { return v === null || v === undefined ? '' : String(v); };
+
+    var digits = str(form.phone).replace(/[^\d]/g, '');
+    var dial = str(form.dialCode).replace(/[^\d+]/g, '');
+    var e164 = digits
+      ? dial + digits.replace(new RegExp('^' + dial.replace('+', '')), '')
+      : '';
 
     return {
       // step 1 — who to call
-      contactReason: form.contactReason,
-      firstName: form.firstName,
-      lastName: form.lastName,
-      countryRegion: form.countryRegion,
-      dialCode: form.dialCode,
-      phone: form.phone,
-      phoneE164: digits ? (dial + digits.replace(new RegExp('^' + dial.replace('+', '')), '')) : null,
+      contactReason: str(form.contactReason),
+      firstName: str(form.firstName),
+      lastName: str(form.lastName),
+      countryRegion: str(form.countryRegion),
+      dialCode: str(form.dialCode),
+      phone: str(form.phone),
+      phoneE164: e164,
       consentToCallRecording: !!form.consent,
 
       // step 2 — what about
-      description: form.description,
+      description: str(form.description),
 
       // who they are — the same context the chat widget carries
-      shopperId: context.shopperId || null,
+      shopperId: str(context.shopperId),
 
       // provenance
       source: 'quirepress-web',
       channel: 'callback',
-      requestedAt: nowIso,
+      requestedAt: str(nowIso),
       pageUrl: location.href
     };
   }
@@ -90,6 +107,11 @@ var CALLBACK_API = {
     }
 
     // ---- Real request ---------------------------------------------------
+    // Logged as the exact serialised string that goes on the wire, so it can be
+    // diffed against a Postman body character for character.
+    var json = JSON.stringify(payload);
+    console.info('[quirepress] POST ' + CALLBACK_API.endpoint + '\n' + json);
+
     var controller = new AbortController();
     var timer = setTimeout(function () { controller.abort(); }, CALLBACK_API.timeoutMs);
 
@@ -97,7 +119,7 @@ var CALLBACK_API = {
       var res = await fetch(CALLBACK_API.endpoint, {
         method: CALLBACK_API.method,
         headers: CALLBACK_API.headers,
-        body: JSON.stringify(payload),
+        body: json,
         signal: controller.signal
       });
 

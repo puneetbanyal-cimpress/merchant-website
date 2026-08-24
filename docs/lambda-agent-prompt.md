@@ -58,14 +58,16 @@ Build and deploy an AWS Lambda that receives **callback requests** from a live w
 | `countryRegion` | string | ISO-3166 alpha-2, one of `US CA GB IE AU NZ IN SG DE AT CH NL FR ES IT SE`. |
 | `dialCode` | string | e.g. `"+1"`, `"+44"`. Corresponds to `countryRegion`. |
 | `phone` | string | **Exactly as typed**, dial code included, spacing arbitrary. Assume no format. |
-| `phoneE164` | string \| null | Best-effort E.164 assembled in the browser. **A hint, not a validated value** — re-normalise server-side. `null` when no digits were entered. |
+| `phoneE164` | string | Best-effort E.164 assembled in the browser. **A hint, not a validated value** — re-normalise server-side. `""` when no digits were entered. |
 | `consentToCallRecording` | boolean | The form won't submit without it, so expect `true`. Reject `false` regardless. |
 | `description` | string | 15–1000 characters, enforced client-side. Re-check server-side. |
-| `shopperId` | string \| null | Opaque, up to ~64 chars, mixed case with hyphens (e.g. `d2FyaG9s-237A146…`). `null` when the visitor never picked a shopper. **Must not be required.** |
+| `shopperId` | string | Opaque, up to ~64 chars, mixed case with hyphens (e.g. `d2FyaG9s-237A146…`). `""` when the visitor never picked a shopper. **Must not be required.** |
 | `source` | string | Always `"quirepress-web"`. |
 | `channel` | string | Always `"callback"`. |
 | `requestedAt` | string | ISO-8601 UTC from the browser — **an untrusted clock**. Use server time for anything that matters. |
 | `pageUrl` | string | Full URL of the submitting page. |
+
+**The shape is guaranteed.** All fourteen keys are always present, in the order above. Every value is a **string** except `consentToCallRecording`, which is a boolean. **Nothing is ever `null`** — an absent phone number or shopper arrives as `""`, so you never have to null-check before trimming or before handing a value to Connect.
 
 **Trust nothing in this body.** It comes from a browser and is trivially forged. Validate every field server-side; the client-side validation exists for UX only.
 
