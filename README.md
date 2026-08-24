@@ -123,18 +123,43 @@ One POST fires, on **Submit request**, carrying both steps plus the chat context
 
 ### Wiring up the API
 
-`callback-api.js`, top of file:
+`callback-api.js`, top of file — the endpoint is live:
 
 ```js
 var CALLBACK_API = {
-  endpoint: '',            // <-- paste the POST endpoint here
+  endpoint: 'https://cykdl4xwkivlkod3mpx6s62sky0pjzrl.lambda-url.eu-west-1.on.aws',
   method: 'POST',
   headers: { 'Content-Type': 'application/json' },
   timeoutMs: 15000
 };
 ```
 
-With `endpoint` empty the form runs in **simulation mode**: the payload is logged to the console, a success is faked after ~700ms, and the confirmation panel notes it was simulated. Fill in `endpoint` and the identical payload goes out as a real POST — no other change needed.
+Blank the `endpoint` and the form drops back to **simulation mode**: the payload is logged to the console, a success is faked, and the confirmation panel says so. Useful for demoing with the backend down.
+
+### What the UI does with the response
+
+**Success** is any 2xx. The confirmation panel shows both identifiers as selectable rows:
+
+```json
+{ "referenceId": "b2d47d68-899c-4aa2-b023-b1b36455dfc7", "caseNumber": "CS-87" }
+```
+
+Either may be missing — that row is hidden rather than printing `undefined`, and a 2xx with no body at all is still treated as success.
+
+**Failure** keeps the customer on step 2 with their text intact, shows the reason inline, and re-enables the button so they can retry:
+
+| Case | Shown to the customer |
+|---|---|
+| Any status with `message` or `error` in the body | that string, verbatim |
+| 400 / 422, no body | Some of those details were rejected. Please check them and try again. |
+| 401 / 403, no body | We couldn't authorise that request. Please try again, or call us instead. |
+| 404, no body | That service isn't available right now. Please call us instead. |
+| 429, no body | That's a few too many requests. Please wait a minute and try again. |
+| 5xx, no body | Something went wrong at our end. Please try again in a moment. |
+| Timeout (15s) | That took too long to go through. Please try again. |
+| Network or CORS rejection | We couldn't reach us just now. Check your connection and try again. |
+
+That last row matters: `fetch()` rejects with the same `TypeError` for a dropped connection **and** for a CORS rejection — the browser deliberately hides which. "Failed to fetch" means nothing to a customer, so the UI says something actionable and logs the real error to the console for you.
 
 The payload:
 

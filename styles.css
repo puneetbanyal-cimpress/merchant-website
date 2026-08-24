@@ -340,3 +340,21 @@ a{color:inherit}
 @media (max-width:980px){
   .adm__row{grid-template-columns:1fr;gap:0}
 }
+
+/* success references shown after a callback request is placed */
+.cb__refs{
+  margin:24px auto 0;max-width:340px;
+  display:flex;flex-direction:column;gap:1px;
+  background:var(--line);border:1px solid var(--line);border-radius:10px;overflow:hidden;
+}
+.cb__ref{
+  display:flex;align-items:baseline;justify-content:space-between;gap:16px;
+  background:#fff;padding:11px 14px;text-align:left;
+}
+.cb__ref dt{font-size:12.5px;color:var(--muted);flex:none}
+.cb__ref dd{
+  margin:0;font-size:13px;font-weight:600;color:var(--ink);
+  font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
+  user-select:all;word-break:break-all;text-align:right;
+}
+.cb__done-note{margin:14px 0 0;font-size:12.5px;color:var(--muted)}

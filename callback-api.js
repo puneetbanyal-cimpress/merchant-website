@@ -11,7 +11,7 @@
  * out as a real POST.
  */
 var CALLBACK_API = {
-  endpoint: '',            // e.g. 'https://api.example.com/v1/callback-requests'
+  endpoint: 'https://cykdl4xwkivlkod3mpx6s62sky0pjzrl.lambda-url.eu-west-1.on.aws',
   method: 'POST',
   headers: {
     'Content-Type': 'application/json'
@@ -82,7 +82,10 @@ var CALLBACK_API = {
         ok: true,
         simulated: true,
         status: 201,
-        data: { referenceId: 'SIM-' + Math.abs(hash(JSON.stringify(payload))).toString(36).toUpperCase() }
+        data: {
+          referenceId: 'SIM-' + Math.abs(hash(JSON.stringify(payload))).toString(36).toUpperCase(),
+          caseNumber: 'CS-SIM'
+        }
       };
     }
 
@@ -102,24 +105,55 @@ var CALLBACK_API = {
       try { data = await res.json(); } catch (e) { /* empty or non-JSON body is fine */ }
 
       if (!res.ok) {
+        console.error('[quirepress] callback request failed', res.status, data);
         return {
           ok: false,
           simulated: false,
           status: res.status,
           data: data,
-          error: (data && (data.message || data.error)) || ('Request failed with ' + res.status)
+          // The API's own message wins — it is written for this situation.
+          // Otherwise fall back to something the customer can act on; a bare
+          // status code tells them nothing.
+          error: (data && (data.message || data.error)) || messageForStatus(res.status)
         };
       }
       return { ok: true, simulated: false, status: res.status, data: data };
     } catch (err) {
+      console.error('[quirepress] callback request errored', err);
       return {
         ok: false,
         simulated: false,
-        error: err.name === 'AbortError' ? 'The request timed out.' : err.message
+        error: err.name === 'AbortError'
+          ? 'That took too long to go through. Please try again.'
+          // fetch() rejects with a TypeError for a dropped connection AND for a
+          // CORS rejection — the browser deliberately hides which. "Failed to
+          // fetch" in front of a customer is meaningless, so say something they
+          // can act on and leave the diagnosis to the console line above.
+          : "We couldn't reach us just now. Check your connection and try again."
       };
     } finally {
       clearTimeout(timer);
     }
+  }
+
+  /** Customer-readable fallback when the API returns no message of its own. */
+  function messageForStatus(status) {
+    if (status === 400 || status === 422) {
+      return 'Some of those details were rejected. Please check them and try again.';
+    }
+    if (status === 401 || status === 403) {
+      return "We couldn't authorise that request. Please try again, or call us instead.";
+    }
+    if (status === 404) {
+      return "That service isn't available right now. Please call us instead.";
+    }
+    if (status === 429) {
+      return "That's a few too many requests. Please wait a minute and try again.";
+    }
+    if (status >= 500) {
+      return 'Something went wrong at our end. Please try again in a moment.';
+    }
+    return 'Something went wrong. Please try again.';
   }
 
   /** Tiny non-crypto hash, only used to mint a readable fake reference id. */

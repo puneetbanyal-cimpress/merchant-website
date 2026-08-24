@@ -31,6 +31,7 @@
    'cbGreeting','cbIdentValue','cbIdentSep','cbNotYou','cbStepTitle',
    'cbForm1','cbForm2','cbReason','cbFirst','cbLast','cbCountry','cbPhone','cbConsent',
    'cbDesc','cbCount','cbBack','cbNext','cbSubmit','cbClose','cbStatus','cbDoneMsg',
+   'cbRefs','cbCaseRow','cbCaseNumber','cbRefRow','cbReferenceId','cbDoneNote',
    'adminDialog','admForm','admFirst','admLast','admId','admError','admAdd',
    'admList','admEmpty','admCount','admClear','admClose'
   ].forEach(function (id) { ui[id] = document.getElementById(id); });
@@ -425,12 +426,25 @@
       return;
     }
 
-    var ref = result.data && result.data.referenceId;
-    ui.cbDoneMsg.textContent =
-      "We'll call " + dialFor(ui.cbCountry.value) + ' ' +
-      ui.cbPhone.value.trim().replace(dialFor(ui.cbCountry.value), '').trim() +
-      ' within minutes. Reference ' + (ref || '—') + '.' +
-      (result.simulated ? ' (Simulated — no endpoint configured yet.)' : '');
+    var data = result.data || {};
+    var dial = dialFor(ui.cbCountry.value);
+    var rest = ui.cbPhone.value.trim().replace(dial, '').trim();
+
+    ui.cbDoneMsg.textContent = "We'll call " + dial + ' ' + rest + ' within minutes.';
+
+    // A 2xx with no body is still a success — show the rows we do have and hide
+    // the rest rather than printing "undefined" at the customer.
+    ui.cbCaseNumber.textContent = data.caseNumber || '—';
+    ui.cbReferenceId.textContent = data.referenceId || '—';
+    ui.cbCaseRow.hidden = !data.caseNumber;
+    ui.cbRefRow.hidden = !data.referenceId;
+    ui.cbRefs.hidden = !data.caseNumber && !data.referenceId;
+
+    ui.cbDoneNote.hidden = !result.simulated;
+    ui.cbDoneNote.textContent = result.simulated
+      ? 'Simulated — no endpoint configured, nothing was sent.'
+      : '';
+
     showStep('done');
   }
 

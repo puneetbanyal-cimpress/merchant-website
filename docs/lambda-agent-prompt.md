@@ -78,13 +78,13 @@ The site's handling of your response is already written and fixed. Match it or t
 ### Success
 
 - **Any 2xx status.**
-- Body: JSON, or empty. If JSON, the site reads **`referenceId`** and shows it to the customer as their reference number. An empty or non-JSON body still counts as success — the UI just displays `—` in place of a reference.
+- Body: JSON, or empty. An empty or non-JSON body still counts as success — the UI just omits the reference rows.
 
 ```json
-{ "referenceId": "CB-2026-0A73F1" }
+{ "referenceId": "b2d47d68-899c-4aa2-b023-b1b36455dfc7", "caseNumber": "CS-87" }
 ```
 
-Return something support can actually search on: the Amazon Connect contact ID, or your own ticket ID mapped to it.
+The site reads **`referenceId`** and **`caseNumber`** and shows both to the customer as labelled rows. Either may be omitted — that row is simply hidden. Return values support can actually search on.
 
 ### Failure
 
