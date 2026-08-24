@@ -17,16 +17,6 @@
  */
 window.DEMO_SHOPPERS = [
   {
-    firstName: 'Puneet',
-    lastName: 'Banyal - (NP)',
-    shopperId: 'nVke2QV2-01KYVXXPBJ47EWXRAKBXPKWWF2'
-  },
-  {
-    firstName: 'Vishal',
-    lastName: 'Bhoriwal - (NP)',
-    shopperId: 'nVke2QV2-01KXNFDK4SP5DYPF2CS3CH43BG'
-  },
-  {
     firstName: 'Paul',
     lastName: 'Harraghy',
     shopperId: 'd2FyaG9s-237A146D7D6859E2CE8BEFDCAB4D38F9'
@@ -45,6 +35,19 @@ window.DEMO_SHOPPERS = [
     firstName: 'Rinku',
     lastName: 'Singhal',
     shopperId: 'd2FyaG9s-F8FBEF91F7A8CBD110F28F8B134F89EA'
+  },
+
+  // The two "- (NP)" accounts sit last: they are non-production test shoppers,
+  // so they belong below the ones a demo actually opens with.
+  {
+    firstName: 'Puneet',
+    lastName: 'Banyal - (NP)',
+    shopperId: 'nVke2QV2-01KYVXXPBJ47EWXRAKBXPKWWF2'
+  },
+  {
+    firstName: 'Vishal',
+    lastName: 'Bhoriwal - (NP)',
+    shopperId: 'nVke2QV2-01KXNFDK4SP5DYPF2CS3CH43BG'
   }
 ];
 
