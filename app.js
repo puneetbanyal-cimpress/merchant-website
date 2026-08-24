@@ -22,6 +22,9 @@
   var REGIONS = window.COUNTRY_REGIONS || [];
   var HOURS = window.WORKING_HOURS || [];
   var MIN_DESC = 15;
+  // Deliberately loose: something@something.tld. Anything stricter rejects
+  // valid addresses, and the real check is whether mail arrives.
+  var EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
   var ui = {};
   ['shopperSelect','btnSetContext','shopperCtx','shopperCtxEmpty','widgetStatus',
@@ -32,7 +35,7 @@
    'cbForm1','cbForm2','cbReason','cbFirst','cbLast','cbCountry','cbPhone','cbConsent',
    'cbDesc','cbCount','cbBack','cbNext','cbSubmit','cbClose','cbStatus','cbDoneMsg',
    'cbRefs','cbCaseRow','cbCaseNumber','cbRefRow','cbReferenceId','cbDoneNote',
-   'adminDialog','admForm','admFirst','admLast','admId','admError','admAdd',
+   'adminDialog','admForm','admFirst','admLast','admId','admEmail','admError','admAdd',
    'admList','admEmpty','admCount','admClear','admClose'
   ].forEach(function (id) { ui[id] = document.getElementById(id); });
 
@@ -64,10 +67,23 @@
     if (!Array.isArray(raw)) return [];
     // Re-validate on read: hand-edited localStorage would otherwise put a
     // malformed entry straight into the attributes sent to Amazon Connect.
-    return raw.filter(function (s) {
-      return s && typeof s.firstName === 'string' && typeof s.lastName === 'string' &&
-             typeof s.shopperId === 'string' && s.shopperId.trim() !== '';
-    });
+    return raw
+      .filter(function (s) {
+        return s && typeof s.firstName === 'string' && typeof s.lastName === 'string' &&
+               typeof s.shopperId === 'string' && s.shopperId.trim() !== '';
+      })
+      // `email` arrived later than the rest, so entries written by an older
+      // build have no such key. Backfill it to '' rather than letting
+      // `undefined` reach the payload builder, where JSON.stringify would drop
+      // the key entirely instead of sending an empty string.
+      .map(function (s) {
+        return {
+          firstName: s.firstName,
+          lastName: s.lastName,
+          shopperId: s.shopperId,
+          email: typeof s.email === 'string' ? s.email : ''
+        };
+      });
   }
 
   function saveCustom() {
@@ -134,6 +150,10 @@
       shopperId: active.shopperId,
       firstName: active.firstName,
       lastName: active.lastName,
+      // Only the built-in shoppers lack one, and normalizeAttributes drops
+      // empty strings — so `email` simply isn't in the attribute set for them
+      // rather than arriving in the flow as a blank value.
+      email: active.email || '',
       // Sent as an attribute as well as via customerDisplayName: the display
       // name itself is a chat participant detail, not a contact attribute, so
       // Streams' contact.getAttributes() cannot see it. Duplicating it here is
@@ -469,6 +489,7 @@
     var first = String((entry && entry.firstName) || '').trim();
     var last = String((entry && entry.lastName) || '').trim();
     var id = String((entry && entry.shopperId) || '').trim();
+    var email = String((entry && entry.email) || '').trim();
 
     if (!first) return 'First name is required.';
     if (!last) return 'Last name is required.';
@@ -476,8 +497,11 @@
     // Same rule Amazon Connect applies to the display name.
     if ((first + ' ' + last).length > 256) return 'Name is longer than 256 characters.';
     if (findShopper(id)) return 'A shopper with that ID already exists.';
+    // Optional — but a typo'd address is worse than none, since it would be
+    // handed to the Lambda as if it were reachable.
+    if (email && !EMAIL_RE.test(email)) return 'That email address does not look right.';
 
-    custom.push({ firstName: first, lastName: last, shopperId: id });
+    custom.push({ firstName: first, lastName: last, shopperId: id, email: email });
     saveCustom();
     rebuildShopperOptions();
     renderAdminList();
@@ -514,6 +538,14 @@
       text.appendChild(name);
       text.appendChild(id);
 
+      if (s.email) {
+        var mail = document.createElement('span');
+        mail.className = 'adm__item-mail';
+        mail.textContent = s.email;
+        mail.title = s.email;
+        text.appendChild(mail);
+      }
+
       var rm = document.createElement('button');
       rm.type = 'button';
       rm.className = 'adm__remove';
@@ -545,13 +577,15 @@
       var err = addShopper({
         firstName: ui.admFirst.value,
         lastName: ui.admLast.value,
-        shopperId: ui.admId.value
+        shopperId: ui.admId.value,
+        email: ui.admEmail.value
       });
       ui.admError.textContent = err;
       if (err) return;
       ui.admFirst.value = '';
       ui.admLast.value = '';
       ui.admId.value = '';
+      ui.admEmail.value = '';
       ui.admFirst.focus();
     });
 
@@ -564,14 +598,16 @@
       if (e.target === ui.adminDialog) ui.adminDialog.close();
     });
 
-    // Deep link: ?addShopper&firstName=Ada&lastName=Lovelace&shopperId=ABC-123
-    // adds in one go, for scripted demos with no typing.
+    // Deep link, e.g.
+    //   ?addShopper&firstName=Ada&lastName=Lovelace&shopperId=ABC-123&email=ada@example.com
+    // adds in one go, for scripted demos with no typing. `email` is optional.
     var qp = new URLSearchParams(location.search);
     if (qp.has('addShopper') && qp.get('shopperId')) {
       var err = addShopper({
         firstName: qp.get('firstName'),
         lastName: qp.get('lastName'),
-        shopperId: qp.get('shopperId')
+        shopperId: qp.get('shopperId'),
+        email: qp.get('email')
       });
       if (err) console.warn('[quirepress] addShopper via URL rejected:', err);
     }

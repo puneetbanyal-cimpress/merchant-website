@@ -5,6 +5,11 @@
  * the contact flow already expects; `firstName` and `lastName` ride along with
  * it and also prefill the callback form.
  *
+ * `email` is optional. Add it here to give a built-in shopper one; shoppers
+ * added at runtime through the hidden ?addShopper panel can carry one too. When
+ * present it goes to Connect as a contact attribute and to the callback API as
+ * the `email` field; when absent, the attribute is omitted and the API gets ''.
+ *
  * Every value must be a string — Amazon Connect rejects anything else and the
  * chat fails to start with no useful error.
  *

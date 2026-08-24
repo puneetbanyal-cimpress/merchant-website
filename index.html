@@ -288,6 +288,11 @@
         <label for="admId">Shopper ID</label>
         <input id="admId" type="text" autocomplete="off" spellcheck="false" />
       </div>
+      <div class="adm__field">
+        <label for="admEmail">Email <span class="adm__opt">optional</span></label>
+        <input id="admEmail" type="email" autocomplete="off" spellcheck="false"
+               inputmode="email" placeholder="ada@example.com" />
+      </div>
       <p class="adm__error" id="admError" role="alert"></p>
       <div class="adm__actions">
         <button class="btn btn--primary" type="submit" id="admAdd">Add shopper</button>
@@ -306,9 +311,9 @@
     <details class="adm__help">
       <summary>Other ways to add one</summary>
       <p>Straight from the address bar, no typing in this form:</p>
-      <code class="adm__code">?addShopper&amp;firstName=Ada&amp;lastName=Lovelace&amp;shopperId=ABC-123</code>
+      <code class="adm__code">?addShopper&amp;firstName=Ada&amp;lastName=Lovelace&amp;shopperId=ABC-123&amp;email=ada@example.com</code>
       <p>Or from the browser console:</p>
-      <code class="adm__code">__ADD_SHOPPER__({firstName:'Ada', lastName:'Lovelace', shopperId:'ABC-123'})</code>
+      <code class="adm__code">__ADD_SHOPPER__({firstName:'Ada', lastName:'Lovelace', shopperId:'ABC-123', email:'ada@example.com'})</code>
     </details>
 
     <div class="adm__foot">

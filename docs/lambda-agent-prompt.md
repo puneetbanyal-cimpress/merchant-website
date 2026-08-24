@@ -37,8 +37,9 @@ Build and deploy an AWS Lambda that receives **callback requests** from a live w
   // --- step 2 of the form: what it's about ---
   "description": "My banner order arrived with the wrong dimensions.",
 
-  // --- shopper context: the same value the chat widget passes to Connect ---
+  // --- shopper context: the same values the chat widget passes to Connect ---
   "shopperId": "d2FyaG9s-237A146D7D6859E2CE8BEFDCAB4D38F9",
+  "email": "paul.harraghy@example.com",
 
   // --- provenance ---
   "source": "quirepress-web",
@@ -62,12 +63,13 @@ Build and deploy an AWS Lambda that receives **callback requests** from a live w
 | `consentToCallRecording` | boolean | The form won't submit without it, so expect `true`. Reject `false` regardless. |
 | `description` | string | 15–1000 characters, enforced client-side. Re-check server-side. |
 | `shopperId` | string | Opaque, up to ~64 chars, mixed case with hyphens (e.g. `d2FyaG9s-237A146…`). `""` when the visitor never picked a shopper. **Must not be required.** |
+| `email` | string | Comes from the shopper record, not the form — the customer never types it, so there is no client-side validation behind it. `""` for any shopper without one, which is most of them. **Must not be required, and never assume it is deliverable.** Validate the format and lower-case it server-side before use. |
 | `source` | string | Always `"quirepress-web"`. |
 | `channel` | string | Always `"callback"`. |
 | `requestedAt` | string | ISO-8601 UTC from the browser — **an untrusted clock**. Use server time for anything that matters. |
 | `pageUrl` | string | Full URL of the submitting page. |
 
-**The shape is guaranteed.** All fourteen keys are always present, in the order above. Every value is a **string** except `consentToCallRecording`, which is a boolean. **Nothing is ever `null`** — an absent phone number or shopper arrives as `""`, so you never have to null-check before trimming or before handing a value to Connect.
+**The shape is guaranteed.** All fifteen keys are always present, in the order above. Every value is a **string** except `consentToCallRecording`, which is a boolean. **Nothing is ever `null`** — an absent phone number, email, or shopper arrives as `""`, so you never have to null-check before trimming or before handing a value to Connect.
 
 **Trust nothing in this body.** It comes from a browser and is trivially forged. Validate every field server-side; the client-side validation exists for UX only.
 
@@ -129,9 +131,10 @@ Netlify also serves the site on deploy-preview URLs (`https://<hash>--commerce-h
 1. **Validate.** Return 400 with a customer-readable `message` if: `description` is under 15 or over 1000 characters; `firstName` or `lastName` is empty; `consentToCallRecording` isn't `true`; `contactReason` is outside the enum; or the phone number can't be normalised to something dialable.
 2. **Normalise the phone** from `phone` + `dialCode` server-side. Don't rely on `phoneE164`.
 3. **Queue the callback in Amazon Connect** — `StartOutboundVoiceContact` for a voice callback, or `StartTaskContact` for a queued task an agent works. Attach the details as **contact attributes** so the agent gets a screen pop:
-   - `shopperId`, `firstName`, `lastName`, `contactReason`, `description`, `phoneE164`, `countryRegion`, `source`, `channel`, `requestedAt` (server time), `pageUrl`
+   - `shopperId`, `email`, `firstName`, `lastName`, `contactReason`, `description`, `phoneE164`, `countryRegion`, `source`, `channel`, `requestedAt` (server time), `pageUrl`
    - **Every attribute value must be a string.** Connect rejects non-strings and the failure is opaque. Coerce, and drop empty values rather than sending `""`.
-   - The chat widget on the same site passes `shopperId`, `firstName`, `lastName`, and those arrive in the flow **prefixed** as `HostedWidget-shopperId`. Attributes you set here arrive **unprefixed**. Keep the base names identical so one contact flow can read both paths.
+   - The chat widget on the same site passes `shopperId`, `email`, `firstName`, `lastName`, and those arrive in the flow **prefixed** as `HostedWidget-shopperId`, `HostedWidget-email`, and so on. Attributes you set here arrive **unprefixed**. Keep the base names identical so one contact flow can read both paths.
+   - **`email` is a contact attribute, not a routing decision.** Attaching it gives the agent a screen pop and lets a flow branch on whether one exists. If you want to *send* mail on it — a "we'll call you at 14:20" confirmation — that is a separate step (SES), and it needs its own validation, a suppression check, and a bounce path. Don't let a bad address fail the callback: queue the call first, mail second, and never return a non-2xx because the email leg failed.
 4. **Respect opening hours** — Sun 08:00–20:00, Mon 07:00–00:00, Tue–Fri 24h, Sat 00:00–20:00, all **EST**. Outside them, either queue for the next open window or return a 4xx whose `message` tells the customer when they'll be called. Don't silently drop the request.
 5. **Log** the full request with a correlation ID, redacting the phone number anywhere the log stream isn't access-controlled.
 6. **Return** `{ "referenceId": "…" }`.

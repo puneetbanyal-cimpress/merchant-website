@@ -29,7 +29,7 @@ var CALLBACK_API = {
   /**
    * Build the request body from both wizard steps plus the active chat context.
    *
-   * The shape is fixed by the API contract: these fourteen keys, in this order,
+   * The shape is fixed by the API contract: these fifteen keys, in this order,
    * every one always present. Two rules keep it that way:
    *
    *  - Every string field is forced to a string. `undefined` is not "null" to
@@ -73,6 +73,10 @@ var CALLBACK_API = {
 
       // who they are — the same context the chat widget carries
       shopperId: str(context.shopperId),
+      // Comes from the shopper record, not the form: only shoppers added at
+      // runtime carry one, so this is '' for every built-in shopper. Never
+      // null — same rule as every other string field.
+      email: str(context.email),
 
       // provenance
       source: 'quirepress-web',
