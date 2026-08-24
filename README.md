@@ -50,6 +50,19 @@ var name = attrs['HostedWidget-displayName'].value;   // note .value
 
 `getAttributes()` returns `{ name, value }` objects, not bare strings — reading `attrs['x']` directly gives you an object and renders as `[object Object]`.
 
+### What the agent sees
+
+**No Amazon Connect console setting is needed for the display name.** It rides in on `StartChatContact` and the agent side picks it up — but *how* depends on which agent desktop is in use:
+
+- **Stock CCP** (`connect.core.initCCP()`, or the hosted CCP at `https://<instance>.my.connect.aws/ccp-v2`): the name renders automatically as the chat participant on every customer message. Nothing to build.
+- **Custom chat UI on ChatJS**: you render the transcript yourself, so you must read it yourself. Each item carries `DisplayName` and `ParticipantRole` (`'AGENT' | 'CUSTOMER' | 'SYSTEM'`) — available on `onMessage` events and on `getTranscript()` items.
+- **Contact attributes** (`shopperId` and friends): the stock CCP does **not** surface arbitrary attributes on its own. Read them from Streams with `contact.getAttributes()` and render them in your own panel, or surface them through the agent workspace.
+
+Two things that can make the name not show:
+
+1. **A pre-chat form on the widget.** If the widget's configuration captures the customer's name, that value is used instead. Check the widget config before assuming the code is at fault.
+2. **A resumed chat session.** A rejoined contact keeps the participant details it was created with, so a name set after the fact won't appear. Start a fresh chat when testing.
+
 **The widget is gated on that context.** With nothing selected, the widget script is never injected and no chat bubble appears; the Assistant card reads "Set a chat context to start". Clearing the selection tears down an already-loaded widget. This makes it impossible to open a chat carrying an empty or stale context.
 
 Selection persists in `localStorage`, and `?shopperId=<id>` in the URL pre-seeds it — handy for demo links.
